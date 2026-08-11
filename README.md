@@ -18,9 +18,9 @@ Diet Tracker is a local-first Android food and drink journal built with Kotlin a
 
 Diet Tracker is not a medical device. Nutrition estimates and reference comparisons may be incomplete or inaccurate and are not personalised medical advice.
 
-## ChatGPT Plus and OpenAI API
+## OPenAI API key
 
-ChatGPT Plus cannot be used as the app's API quota. OpenAI API access is billed and configured separately. The Android app must never contain an OpenAI key. It stores only an app-to-gateway token encrypted on the device; the gateway holds `OPENAI_API_KEY`, `OPENAI_MODEL`, and `USDA_API_KEY` as deployment secrets. See [gateway/README.md](gateway/README.md).
+The Android app must never contain an Open AI API key. It stores only an app-to-gateway token encrypted on the device; the gateway holds `AI_API_KEY`, `OPENAI_MODEL`, and `USDA_API_KEY` as deployment secrets. See [gateway/README.md](gateway/README.md).
 
 The app is fully buildable and usable for local/manual logging without any API key. A key is needed only when deploying and live-testing AI photo analysis.
 
