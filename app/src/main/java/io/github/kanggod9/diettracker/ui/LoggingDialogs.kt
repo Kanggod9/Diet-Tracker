@@ -1,0 +1,614 @@
+package io.github.kanggod9.diettracker.ui
+
+import android.content.Context
+import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import io.github.kanggod9.diettracker.domain.AmountUnit
+import io.github.kanggod9.diettracker.domain.DataSet
+import io.github.kanggod9.diettracker.domain.EntryAmount
+import io.github.kanggod9.diettracker.domain.EntryKind
+import io.github.kanggod9.diettracker.domain.FoodScoreCalculator
+import io.github.kanggod9.diettracker.domain.JournalEntry
+import io.github.kanggod9.diettracker.domain.ManualEntryEstimator
+import io.github.kanggod9.diettracker.domain.ManualEntryParser
+import io.github.kanggod9.diettracker.domain.MealType
+import io.github.kanggod9.diettracker.domain.NutrientKey
+import io.github.kanggod9.diettracker.domain.NutrientProvenance
+import io.github.kanggod9.diettracker.domain.Nutrients
+import io.github.kanggod9.diettracker.domain.ParsedManualEntry
+import io.github.kanggod9.diettracker.domain.QuickFood
+import io.github.kanggod9.diettracker.integration.PhotoDraft
+import io.github.kanggod9.diettracker.integration.UsdaFood
+import io.github.kanggod9.diettracker.integration.UsdaFoodDataSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.time.Instant
+import java.util.UUID
+
+internal data class ReviewSeed(
+    val entry: JournalEntry?,
+    val title: String,
+    val sourceNotes: List<String> = emptyList(),
+    val photoDraft: PhotoDraft? = null,
+    val readOnly: Boolean = false,
+)
+
+internal data class UsdaLookupRequest(
+    val query: String,
+    val parsed: ParsedManualEntry? = null,
+    val photoDraft: PhotoDraft? = null,
+)
+
+internal data class PhotoPayload(val bytes: ByteArray, val mimeType: String)
+
+@Composable
+internal fun LogChooserDialog(
+    quickFoods: List<QuickFood>,
+    onlineConfigured: Boolean,
+    onDismiss: () -> Unit,
+    onDetailedManual: () -> Unit,
+    onTextParsed: (ParsedManualEntry) -> Unit,
+    onUsdaSearch: () -> Unit,
+    onPhoto: () -> Unit,
+    onQuickFood: (QuickFood) -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Log food or drink") },
+        text = {
+            LazyColumn(
+                Modifier.heightIn(max = 520.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item {
+                    Text("Type a line such as 'lunch rice 250 g' or 'dinner pasta 600 kcal'.")
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it; error = null },
+                        label = { Text("Food, meal, and quantity") },
+                        modifier = Modifier.fillMaxWidth(),
+                        supportingText = { Text("The text stays on device until you choose USDA search.") },
+                    )
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    Button(
+                        onClick = {
+                            val parsed = ManualEntryParser.parse(text)
+                            if (parsed == null) error = "Include a food name and amount (g, kg, mL, L, serving, or kcal)."
+                            else onTextParsed(parsed)
+                        },
+                        enabled = onlineConfigured && text.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Review with USDA search") }
+                }
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = onDetailedManual, modifier = Modifier.weight(1f)) {
+                            Text("Detailed manual")
+                        }
+                        OutlinedButton(onClick = onUsdaSearch, enabled = onlineConfigured, modifier = Modifier.weight(1f)) {
+                            Text("USDA search")
+                        }
+                    }
+                    OutlinedButton(onClick = onPhoto, enabled = onlineConfigured, modifier = Modifier.fillMaxWidth()) {
+                        Text("Choose photo for AI analysis")
+                    }
+                    if (!onlineConfigured) Text(
+                        "Online actions require your private HTTPS gateway. Manual logging remains available.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (quickFoods.isNotEmpty()) {
+                    item { Text("Quick foods", fontWeight = FontWeight.Bold) }
+                    items(quickFoods, key = { it.id }) { quick ->
+                        OutlinedButton(onClick = { onQuickFood(quick) }, modifier = Modifier.fillMaxWidth()) {
+                            Text("${quick.name} - ${quick.servingDescription}")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
+}
+
+@Composable
+internal fun PhotoConsentDialog(
+    endpoint: String?,
+    onDismiss: () -> Unit,
+    onAnalyze: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Send this photo for AI analysis?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("This one photo will leave your device and go to your private gateway, which sends it to the OpenAI API.")
+                Text("Destination: ${endpoint ?: "not configured"}", style = MaterialTheme.typography.bodySmall)
+                Text("The app does not copy the image into its database. The draft stays in memory and nothing is logged unless you review and save.")
+                Text("OpenAI API access is billed separately from ChatGPT Plus. Never place an OpenAI key in this app.", style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = { Button(onClick = onAnalyze) { Text("I consent - analyze") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+@Composable
+internal fun UsdaSearchDialog(
+    request: UsdaLookupRequest,
+    dataSource: UsdaFoodDataSource,
+    onDismiss: () -> Unit,
+    onReview: (ReviewSeed) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var query by remember(request) { mutableStateOf(request.query) }
+    var grams by remember(request) {
+        mutableStateOf(
+            request.photoDraft?.amount?.takeIf { it.unit == AmountUnit.GRAM }?.value?.toString()
+                ?: request.parsed?.amount?.takeIf { it.unit == AmountUnit.GRAM }?.value?.toString()
+                ?: "100",
+        )
+    }
+    var results by remember { mutableStateOf<List<UsdaFood>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun select(food: UsdaFood) {
+        val candidate = when {
+            request.photoDraft != null -> {
+                val weight = grams.toDoubleOrNull()?.takeIf { it > 0.0 }
+                if (weight == null) {
+                    error = "Enter the photographed amount in grams before filling missing USDA fields."
+                    null
+                } else {
+                    val merged = request.photoDraft.withMissingUsda(food, weight)
+                    ReviewSeed(
+                        entry = merged.toConfirmedEntry("Missing photo fields filled from reviewed USDA ${food.dataType.wireValue} match ${food.fdcId}."),
+                        title = "Review photo plus USDA",
+                        sourceNotes = listOf(
+                            "Existing package-label or AI values were preserved; USDA filled only missing fields.",
+                            "USDA ${food.dataType.wireValue} #${food.fdcId}: ${food.description}.",
+                        ),
+                        photoDraft = merged,
+                    )
+                }
+            }
+            request.parsed != null -> {
+                ManualEntryEstimator.fromUsda(request.parsed, food)?.let {
+                    ReviewSeed(
+                        it,
+                        "Review text log with USDA",
+                        listOf("USDA ${food.dataType.wireValue} #${food.fdcId}: ${food.description}."),
+                    )
+                } ?: run {
+                    error = "This USDA reference is per 100 g. Use a gram or kcal quantity, or detailed manual logging."
+                    null
+                }
+            }
+            else -> {
+                val weight = grams.toDoubleOrNull()?.takeIf { it > 0.0 }
+                if (weight == null) {
+                    error = "Enter a valid weight in grams."
+                    null
+                } else {
+                    val amount = EntryAmount(weight, AmountUnit.GRAM)
+                    ReviewSeed(
+                        JournalEntry(
+                            name = food.description,
+                            kind = EntryKind.FOOD,
+                            mealType = MealType.UNKNOWN,
+                            servingDescription = "${"%.1f".format(weight)} g",
+                            servingGrams = weight,
+                            amount = amount,
+                            nutrients = food.nutrientsForGrams(weight),
+                            note = "Nutrition scaled from reviewed USDA reference; confirm before saving.",
+                        ),
+                        "Review USDA food",
+                        listOf("USDA ${food.dataType.wireValue} #${food.fdcId}."),
+                    )
+                }
+            }
+        }
+        candidate?.let(onReview)
+    }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            Modifier.fillMaxSize().padding(18.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            LazyColumn(
+                Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item {
+                    Text("USDA FoodData Central", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Only Foundation and SR Legacy records are accepted.")
+                    OutlinedTextField(
+                        query,
+                        { query = it; error = null },
+                        label = { Text("Search food") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        grams,
+                        { grams = it; error = null },
+                        label = { Text("Amount in grams") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                loading = true
+                                error = null
+                                try {
+                                    results = dataSource.search(query.trim())
+                                    if (results.isEmpty()) error = "No Foundation or SR Legacy matches were returned."
+                                } catch (exception: Exception) {
+                                    error = exception.message ?: "USDA search could not be completed."
+                                } finally {
+                                    loading = false
+                                }
+                            }
+                        },
+                        enabled = query.trim().length >= 2 && !loading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        if (loading) CircularProgressIndicator(Modifier.padding(end = 8.dp))
+                        Text("Search verified data")
+                    }
+                    error?.let { Text(it.take(240), color = MaterialTheme.colorScheme.error) }
+                    Text("Choose a result to create an in-memory draft. It is not saved yet.", style = MaterialTheme.typography.bodySmall)
+                }
+                items(results, key = { it.fdcId }) { food ->
+                    OutlinedButton(onClick = { select(food) }, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text(food.description, fontWeight = FontWeight.SemiBold)
+                            Text("${food.dataType.wireValue} - FDC ${food.fdcId}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                item { TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel") } }
+            }
+        }
+    }
+}
+@Composable
+internal fun EntryEditorDialog(
+    seed: ReviewSeed,
+    onDismiss: () -> Unit,
+    onSave: (JournalEntry, Boolean) -> Unit,
+    onFindUsda: (() -> Unit)? = null,
+) {
+    val existing = seed.entry
+    var name by remember(seed) { mutableStateOf(existing?.name.orEmpty()) }
+    var kind by remember(seed) { mutableStateOf(existing?.kind ?: EntryKind.FOOD) }
+    var meal by remember(seed) { mutableStateOf(existing?.mealType ?: MealType.UNKNOWN) }
+    var amount by remember(seed) { mutableStateOf(existing?.amount?.value?.toString() ?: "1") }
+    var unit by remember(seed) { mutableStateOf(existing?.amount?.unit ?: AmountUnit.SERVING) }
+    var note by remember(seed) { mutableStateOf(existing?.note.orEmpty()) }
+    var showAll by remember { mutableStateOf(false) }
+    var review by remember(seed) { mutableStateOf(seed.readOnly) }
+    var saveQuick by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var candidate by remember(seed) { mutableStateOf(existing.takeIf { seed.readOnly }) }
+    val nutrientText = remember(seed) {
+        mutableStateMapOf<NutrientKey, String>().apply {
+            existing?.nutrients?.values?.forEach { (key, value) -> put(key, value.toString()) }
+        }
+    }
+    val edited = remember(seed) { mutableStateMapOf<NutrientKey, Boolean>() }
+    val common = listOf(
+        NutrientKey.ENERGY,
+        NutrientKey.PROTEIN,
+        NutrientKey.TOTAL_CARBOHYDRATE,
+        NutrientKey.TOTAL_FAT,
+        NutrientKey.SATURATED_FAT,
+        NutrientKey.DIETARY_FIBER,
+        NutrientKey.TOTAL_SUGAR,
+        NutrientKey.ADDED_SUGAR,
+        NutrientKey.SODIUM,
+        NutrientKey.WATER,
+    )
+
+    fun buildCandidate(): JournalEntry? {
+        val numericAmount = amount.toDoubleOrNull()?.takeIf { it > 0.0 && it <= 100_000.0 }
+        if (name.isBlank() || numericAmount == null) {
+            error = "Enter a name and a positive amount."
+            return null
+        }
+        val invalid = nutrientText.entries.firstOrNull { (_, text) ->
+            text.isNotBlank() && text.toDoubleOrNull()?.let { !it.isFinite() || it < 0.0 || it > 100_000.0 } != false
+        }
+        if (invalid != null) {
+            error = "${invalid.key.label} must be blank or a non-negative number."
+            return null
+        }
+        val values = nutrientText.mapNotNull { (key, text) -> text.toDoubleOrNull()?.let { key to it } }.toMap()
+        val provenance = values.keys.associateWith { key ->
+            val previous = existing?.nutrients?.provenance?.get(key)
+            if (edited[key] != true && previous != null) previous else NutrientProvenance(
+                dataSet = DataSet.MANUAL,
+                sourceLabel = "User entered or edited",
+                retrievedAt = Instant.now(),
+                verified = false,
+            )
+        }
+        val entryAmount = EntryAmount(numericAmount, unit)
+        error = null
+        return JournalEntry(
+            id = existing?.id ?: UUID.randomUUID().toString(),
+            name = name.trim(),
+            kind = kind,
+            mealType = meal,
+            servingDescription = "${entryAmount.value} ${unit.symbol}",
+            servingGrams = entryAmount.value.takeIf { unit == AmountUnit.GRAM },
+            amount = entryAmount,
+            loggedAt = existing?.loggedAt ?: Instant.now(),
+            nutrients = Nutrients(values, provenance),
+            note = note.trim(),
+        )
+    }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            Modifier.fillMaxSize().padding(18.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    if (review) "Review before saving" else seed.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                LazyColumn(
+                    Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (review) {
+                        val reviewed = candidate
+                        item {
+                            seed.sourceNotes.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                            if (seed.sourceNotes.isNotEmpty()) HorizontalDivider()
+                            Text(reviewed?.name.orEmpty(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("${reviewed?.mealType?.displayName} - ${reviewed?.servingDescription}")
+                            if (!reviewed?.note.isNullOrBlank()) Text(reviewed?.note.orEmpty())
+                        }
+                        reviewed?.let { entry ->
+                            items(entry.nutrients.values.entries.sortedBy { it.key.ordinal }, key = { it.key.name }) { (key, value) ->
+                                val source = entry.nutrients.provenance[key]
+                                OutlinedCard {
+                                    Column(Modifier.padding(12.dp).fillMaxWidth()) {
+                                        Text("${key.label}: $value ${key.unit}", fontWeight = FontWeight.SemiBold)
+                                        Text(source?.sourceLabel ?: "Source unavailable", style = MaterialTheme.typography.bodySmall)
+                                        Text(if (source?.verified == true) "Verified field" else "Unverified field", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+                            item {
+                                val score = FoodScoreCalculator.calculate(entry.nutrients)
+                                SectionCard("Transparent food score") {
+                                    Text(score.score?.let { "$it / 100" } ?: "Not available")
+                                    Text(score.unavailableReason ?: score.basis, style = MaterialTheme.typography.bodySmall)
+                                    score.components.take(8).forEach { Text(it.explanation, style = MaterialTheme.typography.bodySmall) }
+                                    Text(FoodScoreCalculator.DISCLAIMER, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            if (!seed.readOnly) item {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(saveQuick, { saveQuick = it })
+                                    Text("Also save as a local quick food")
+                                }
+                            }
+                            if (onFindUsda != null) item {
+                                OutlinedButton(onClick = onFindUsda, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Find USDA match to fill missing fields")
+                                }
+                            }
+                        }
+                    } else {
+                        item {
+                            OutlinedTextField(name, { name = it; error = null }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                EntryKind.entries.forEach { value ->
+                                    FilterChip(value == kind, { kind = value }, label = { Text(value.displayName) })
+                                }
+                            }
+                        }
+                        item {
+                            OutlinedTextField(amount, { amount = it; error = null }, label = { Text("Amount") }, modifier = Modifier.fillMaxWidth())
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                AmountUnit.entries.forEach { value ->
+                                    FilterChip(value == unit, { unit = value }, label = { Text(value.symbol) })
+                                }
+                            }
+                        }
+                        item {
+                            Text("Meal")
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                MealType.entries.forEach { value ->
+                                    AssistChip(onClick = { meal = value }, label = { Text(value.displayName) })
+                                }
+                            }
+                            Text("Selected: ${meal.displayName}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        val keys = if (showAll) NutrientKey.entries else common
+                        items(keys, key = { it.name }) { key ->
+                            OutlinedTextField(
+                                value = nutrientText[key].orEmpty(),
+                                onValueChange = { nutrientText[key] = it; edited[key] = true; error = null },
+                                label = { Text("${key.label} (${key.unit})") },
+                                modifier = Modifier.fillMaxWidth(),
+                                supportingText = { Text("Blank = missing; 0 = explicit zero") },
+                            )
+                        }
+                        item {
+                            TextButton(onClick = { showAll = !showAll }) {
+                                Text(if (showAll) "Show common nutrients" else "Show all Health Connect nutrients")
+                            }
+                            OutlinedTextField(
+                                note,
+                                { note = it.take(2_000) },
+                                label = { Text("Note") },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = {
+                        if (review && !seed.readOnly) {
+                            review = false
+                            candidate = null
+                        } else onDismiss()
+                    }) { Text(if (review && !seed.readOnly) "Back" else "Close") }
+                    if (!seed.readOnly) Button(onClick = {
+                        if (!review) {
+                            buildCandidate()?.let { candidate = it; review = true }
+                        } else {
+                            candidate?.let { onSave(it, saveQuick) }
+                        }
+                    }) { Text(if (review) "Confirm and save" else "Review") }
+                }
+            }
+        }
+    }
+}
+@Composable
+internal fun HealthImportReviewDialog(
+    entries: List<JournalEntry>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<JournalEntry>) -> Unit,
+) = EntrySelectionDialog(
+    title = "Review Health Connect import",
+    body = "Nothing is copied into the local journal until you confirm the selected records.",
+    confirmLabel = "Import selected",
+    entries = entries,
+    onDismiss = onDismiss,
+    onConfirm = onConfirm,
+)
+
+@Composable
+internal fun HealthExportDialog(
+    entries: List<JournalEntry>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<JournalEntry>) -> Unit,
+) = EntrySelectionDialog(
+    title = "Write to Health Connect",
+    body = "Only selected records are written after this confirmation. There is no background sync.",
+    confirmLabel = "Write selected",
+    entries = entries,
+    onDismiss = onDismiss,
+    onConfirm = onConfirm,
+)
+
+@Composable
+private fun EntrySelectionDialog(
+    title: String,
+    body: String,
+    confirmLabel: String,
+    entries: List<JournalEntry>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<JournalEntry>) -> Unit,
+) {
+    val selected = remember(entries) { mutableStateMapOf<String, Boolean>() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item { Text(body) }
+                if (entries.isEmpty()) item { Text("No compatible records are available.") }
+                items(entries, key = { it.id }) { entry ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = selected[entry.id] == true,
+                            onCheckedChange = { selected[entry.id] = it },
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(entry.name, fontWeight = FontWeight.SemiBold)
+                            Text("${entry.loggedAt} - ${entry.servingDescription}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(entries.filter { selected[it.id] == true }) },
+                enabled = selected.values.any { it },
+            ) { Text(confirmLabel) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+internal suspend fun readPhotoForAnalysis(context: Context, uri: Uri): PhotoPayload = withContext(Dispatchers.IO) {
+    val resolver = context.contentResolver
+    val mime = resolver.getType(uri)?.lowercase() ?: "image/jpeg"
+    require(mime in setOf("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif")) {
+        "Choose a JPEG, PNG, WebP, HEIC, or HEIF image."
+    }
+    val bytes = resolver.openInputStream(uri)?.use { input ->
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(16_384)
+        var total = 0
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            total += count
+            require(total <= MAX_PHOTO_BYTES) { "Choose an image no larger than 8 MB." }
+            output.write(buffer, 0, count)
+        }
+        output.toByteArray()
+    } ?: error("The selected image could not be opened.")
+    require(bytes.isNotEmpty()) { "The selected image is empty." }
+    PhotoPayload(bytes, mime)
+}
+
+private const val MAX_PHOTO_BYTES = 8 * 1024 * 1024
