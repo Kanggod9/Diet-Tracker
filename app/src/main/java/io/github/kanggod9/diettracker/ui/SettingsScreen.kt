@@ -11,11 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import io.github.kanggod9.diettracker.data.LocalSnapshot
 import io.github.kanggod9.diettracker.data.LocalStore
 import io.github.kanggod9.diettracker.data.SecureConfigStore
-import io.github.kanggod9.diettracker.domain.GuidanceRegion
 import io.github.kanggod9.diettracker.integration.HealthConnectAvailability
 import io.github.kanggod9.diettracker.integration.HealthConnectGateway
 import kotlinx.coroutines.Dispatchers
@@ -50,18 +48,17 @@ internal fun SettingsScreen(
     gatewayRevision: Int,
     healthPermissionRevision: Int,
     onGatewayChanged: () -> Unit,
-    onGuidanceChanged: () -> Unit,
     onRequestHealthPermissions: () -> Unit,
     onImportHealth: () -> Unit,
     onExportHealth: () -> Unit,
     onExportJson: () -> Unit,
     onDeleteAll: () -> Unit,
 ) {
-    var region by remember { mutableStateOf(store.setting("guidance_region") ?: GuidanceRegion.SINGAPORE.name) }
     var endpoint by remember(gatewayRevision) { mutableStateOf(secureConfig.configuredEndpoint().orEmpty()) }
     var token by remember(gatewayRevision) { mutableStateOf("") }
     var gatewayError by remember { mutableStateOf<String?>(null) }
     var granted by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var autoWrite by remember { mutableStateOf(store.setting(HEALTH_AUTO_WRITE) == "true") }
     LaunchedEffect(gatewayRevision, healthPermissionRevision) {
         granted = runCatching { healthGateway.grantedPermissions() }.getOrDefault(emptySet())
     }
@@ -70,48 +67,24 @@ internal fun SettingsScreen(
 
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
+        contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item {
-            Text("Settings", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-            Text("Local-first controls and explicit online actions")
-        }
-        item {
-            SectionCard("Guidance profile") {
-                GuidanceRegion.entries.forEach { value ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = region == value.name,
-                            onClick = {
-                                region = value.name
-                                store.setSetting("guidance_region", value.name)
-                                onGuidanceChanged()
-                            },
-                        )
-                        Text(value.displayName)
-                    }
-                }
-                Text("All three regional profiles remain visible in Analysis. This choice controls the Today card.", style = MaterialTheme.typography.bodySmall)
-            }
-        }
+        item { Text("Settings", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold) }
         item {
             SectionCard("Private AI and USDA gateway") {
-                Text("The Android app talks only to your HTTPS gateway. OpenAI and USDA provider keys belong in gateway secrets, never here, in the APK, or in Git.")
                 OutlinedTextField(
                     endpoint,
                     { endpoint = it; gatewayError = null },
-                    label = { Text("Gateway URL (HTTPS)") },
-                    placeholder = { Text("https://diet-api.example.com/") },
+                    label = { Text("Gateway URL") },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     token,
                     { token = it; gatewayError = null },
-                    label = { Text("App-to-gateway access token") },
+                    label = { Text("Access token") },
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
-                    supportingText = { Text("Use a random 16+ character gateway token. Do not paste an OpenAI API key.") },
                 )
                 gatewayError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -123,12 +96,12 @@ internal fun SettingsScreen(
                                 gatewayError = null
                                 onGatewayChanged()
                             } catch (error: Exception) {
-                                gatewayError = error.message ?: "Gateway settings are invalid."
+                                gatewayError = error.message ?: "Invalid gateway settings."
                             }
                         },
                         enabled = endpoint.isNotBlank() && token.isNotBlank(),
                         modifier = Modifier.weight(1f),
-                    ) { Text("Save securely") }
+                    ) { Text("Save") }
                     OutlinedButton(
                         onClick = {
                             secureConfig.clearGateway()
@@ -140,60 +113,66 @@ internal fun SettingsScreen(
                         modifier = Modifier.weight(1f),
                     ) { Text("Clear") }
                 }
-                Text(
-                    if (secureConfig.configuredEndpoint() != null) "Configured on this device with Android Keystore encryption." else "Not configured; online actions are disabled.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text("ChatGPT Plus does not include OpenAI API usage. Live AI requires separately billed API access configured only on the gateway.", style = MaterialTheme.typography.bodySmall)
+                Text(if (secureConfig.isConfigured()) "Configured" else "Not configured")
             }
         }
         item {
             SectionCard("Health Connect") {
                 Text(
                     when (healthGateway.availability()) {
-                        HealthConnectAvailability.AVAILABLE -> if (allHealthPermissions) "Nutrition and hydration read/write permissions granted." else "Available; permissions are not fully granted."
-                        HealthConnectAvailability.UPDATE_REQUIRED -> "The Health Connect provider must be updated."
-                        HealthConnectAvailability.NOT_SUPPORTED -> "Health Connect is not supported on this device."
+                        HealthConnectAvailability.AVAILABLE -> if (allHealthPermissions) "Connected" else "Permissions needed"
+                        HealthConnectAvailability.UPDATE_REQUIRED -> "Update required"
+                        HealthConnectAvailability.NOT_SUPPORTED -> "Not supported"
                     },
                 )
-                Text("Reads and writes happen only when you tap an action and confirm selected records. There is no silent or background sync.", style = MaterialTheme.typography.bodySmall)
                 Button(
                     onClick = onRequestHealthPermissions,
                     enabled = healthAvailable,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Choose nutrition and hydration permissions") }
+                ) { Text("Permissions") }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Auto Write", fontWeight = FontWeight.SemiBold)
+                        Text("Write new logs automatically", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(
+                        checked = autoWrite,
+                        onCheckedChange = {
+                            autoWrite = it
+                            store.setSetting(HEALTH_AUTO_WRITE, it.toString())
+                        },
+                        enabled = healthAvailable && allHealthPermissions,
+                    )
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = onImportHealth,
                         enabled = healthAvailable && allHealthPermissions,
                         modifier = Modifier.weight(1f),
-                    ) { Text("Review import") }
+                    ) { Text("Import") }
                     OutlinedButton(
                         onClick = onExportHealth,
                         enabled = healthAvailable && allHealthPermissions,
                         modifier = Modifier.weight(1f),
-                    ) { Text("Review write") }
+                    ) { Text("Write") }
                 }
             }
         }
         item {
-            SectionCard("Your local data") {
-                Text("Journal entries, quick foods, settings, cached USDA references, suggestions, and sync receipts stay in the app database. Android backup is disabled.")
+            SectionCard("Local data") {
                 OutlinedButton(onClick = onExportJson, modifier = Modifier.fillMaxWidth()) {
-                    Text("Export local JSON")
+                    Text("Export JSON")
                 }
                 OutlinedButton(onClick = onDeleteAll, modifier = Modifier.fillMaxWidth()) {
-                    Text("Delete all local data")
+                    Text("Delete all")
                 }
             }
         }
         item {
-            SectionCard("Privacy boundaries") {
-                Text("Manual entries, trends, and Health Connect drafts stay local unless you explicitly export or write them.")
-                HorizontalDivider()
-                Text("A selected photo leaves the device only after a per-photo consent screen. Dismissing a draft saves nothing.")
-                HorizontalDivider()
-                Text("USDA requests contain search text or an FDC id; they do not include your journal or photos.")
+            SectionCard("Privacy") {
+                Text("Photos require consent.")
+                Text("Gateway keys stay outside the app.")
+                Text("USDA searches never include your journal.")
             }
         }
     }

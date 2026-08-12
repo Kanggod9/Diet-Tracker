@@ -1,17 +1,21 @@
-# Diet Tracker 1.0.0
+# Diet Tracker 1.1.0
 
-First public Android source and APK release.
+Version 1.1.0 makes daily logging faster and adds the requested public-safe camera build.
 
 Highlights:
 
-- Local-first food and drink journal with manual, text-to-USDA, quick-food, and AI photo drafts.
-- Per-photo consent, private stateless OpenAI gateway, strict structured output, and review before persistence.
-- USDA Foundation/SR Legacy-only verification, field provenance, missing-field merge, and a transparent versioned score.
-- Comprehensive nullable nutrients, explicit Nutrition/Hydration Health Connect import and write review, and no silent sync.
-- 7/30/90/all logged-day trends plus separate US, EU, and Singapore coverage-aware guidance.
-- Encrypted gateway configuration, local JSON export, delete all, disabled backup, no analytics, and no bundled keys.
-- 20 JVM tests, 4 gateway contract tests, and 2 API 36 Compose instrumented tests.
+- New Logs dashboard with an energy summary, food score, nutrient progress, and expandable week/month calendar.
+- AI photo logging from either Camera or Album, with user-controlled consent and transient image handling.
+- Simpler food name and quantity entry with g, kg, mL, L, serving, and kcal units.
+- Editable nutrient progress rows and `--` for genuinely unavailable values.
+- New Target section with US, EU, Singapore, and custom nutrient references.
+- Food score no longer requires verified USDA provenance; it uses available reported nutrients and still distinguishes missing values from zero.
+- Optional Health Connect Auto Write for newly confirmed logs, with no background service.
+- USDA FoodData Central access through the private gateway with limited `DEMO_KEY` fallback or an optional private key override.
+- Public APK starts with no gateway configured and contains no gateway endpoint, access token, OpenAI key, or USDA key.
 
-AI photo analysis requires the user to deploy `gateway/` and configure separately billed OpenAI API access. ChatGPT Plus is not API quota. Manual/local features require no key.
+Validation completed with 23 JVM tests, 5 gateway contract tests, 7 API 36 Compose tests, a minified release build, APK signature verification, and source/binary secret scans.
 
-This software is informational and not medical advice or a medical device.
+AI photo analysis and in-app USDA search require the user to deploy `gateway/` and enter that deployment's URL and app token in Settings. ChatGPT Plus is not OpenAI API quota. All local/manual features require no provider key.
+
+This software is informational and is not medical advice or a medical device.

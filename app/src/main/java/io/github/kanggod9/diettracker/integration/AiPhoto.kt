@@ -75,10 +75,7 @@ data class PhotoDraft(
         )
     }
 
-    /**
-     * Package-label values become user-confirmed observations only at this boundary. AI-estimated values stay
-     * unverified and therefore cannot be used by the USDA-only food score.
-     */
+    /** Package-label observations are marked verified after review; AI estimates retain their provenance. */
     fun toConfirmedEntry(note: String = ""): JournalEntry {
         val confirmedProvenance = nutrients.provenance.mapValues { (_, source) ->
             if (source.dataSet == DataSet.PACKAGE_LABEL) {

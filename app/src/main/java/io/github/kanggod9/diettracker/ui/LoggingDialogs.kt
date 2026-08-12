@@ -2,6 +2,7 @@ package io.github.kanggod9.diettracker.ui
 
 import android.content.Context
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -38,6 +39,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -92,8 +95,11 @@ internal fun LogChooserDialog(
     onPhoto: () -> Unit,
     onQuickFood: (QuickFood) -> Unit,
 ) {
-    var text by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf("") }
+    var unit by remember { mutableStateOf("g") }
     var error by remember { mutableStateOf<String?>(null) }
+    val units = listOf("g", "kg", "mL", "L", "serving", "kcal")
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Log food or drink") },
@@ -103,24 +109,33 @@ internal fun LogChooserDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
-                    Text("Type a line such as 'lunch rice 250 g' or 'dinner pasta 600 kcal'.")
                     OutlinedTextField(
-                        value = text,
-                        onValueChange = { text = it; error = null },
-                        label = { Text("Food, meal, and quantity") },
+                        value = name,
+                        onValueChange = { name = it.take(120); error = null },
+                        label = { Text("Name") },
                         modifier = Modifier.fillMaxWidth(),
-                        supportingText = { Text("The text stays on device until you choose USDA search.") },
                     )
+                    OutlinedTextField(
+                        value = quantity,
+                        onValueChange = { quantity = it; error = null },
+                        label = { Text("Quantity") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        units.forEach { value ->
+                            FilterChip(selected = unit == value, onClick = { unit = value }, label = { Text(value) })
+                        }
+                    }
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     Button(
                         onClick = {
-                            val parsed = ManualEntryParser.parse(text)
-                            if (parsed == null) error = "Include a food name and amount (g, kg, mL, L, serving, or kcal)."
-                            else onTextParsed(parsed)
+                            val parsed = ManualEntryParser.parse("${name.trim()} ${quantity.trim()} $unit")
+                            if (parsed == null) error = "Enter a name and quantity." else onTextParsed(parsed)
                         },
-                        enabled = onlineConfigured && text.isNotBlank(),
+                        enabled = onlineConfigured && name.isNotBlank() && quantity.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Review with USDA search") }
+                    ) { Text("Review with USDA") }
                 }
                 item {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -132,18 +147,14 @@ internal fun LogChooserDialog(
                         }
                     }
                     OutlinedButton(onClick = onPhoto, enabled = onlineConfigured, modifier = Modifier.fillMaxWidth()) {
-                        Text("Choose photo for AI analysis")
+                        Text("Photo")
                     }
-                    if (!onlineConfigured) Text(
-                        "Online actions require your private HTTPS gateway. Manual logging remains available.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
                 }
                 if (quickFoods.isNotEmpty()) {
                     item { Text("Quick foods", fontWeight = FontWeight.Bold) }
                     items(quickFoods, key = { it.id }) { quick ->
                         OutlinedButton(onClick = { onQuickFood(quick) }, modifier = Modifier.fillMaxWidth()) {
-                            Text("${quick.name} - ${quick.servingDescription}")
+                            Text("${quick.name} · ${quick.servingDescription}")
                         }
                     }
                 }
@@ -155,26 +166,54 @@ internal fun LogChooserDialog(
 }
 
 @Composable
-internal fun PhotoConsentDialog(
-    endpoint: String?,
+internal fun PhotoSourceDialog(
     onDismiss: () -> Unit,
-    onAnalyze: () -> Unit,
+    onCamera: () -> Unit,
+    onAlbum: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Send this photo for AI analysis?") },
+        title = { Text("Photo") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("This one photo will leave your device and go to your private gateway, which sends it to the OpenAI API.")
-                Text("Destination: ${endpoint ?: "not configured"}", style = MaterialTheme.typography.bodySmall)
-                Text("The app does not copy the image into its database. The draft stays in memory and nothing is logged unless you review and save.")
-                Text("OpenAI API access is billed separately from ChatGPT Plus. Never place an OpenAI key in this app.", style = MaterialTheme.typography.bodySmall)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onCamera, modifier = Modifier.fillMaxWidth()) { Text("Camera") }
+                OutlinedButton(onClick = onAlbum, modifier = Modifier.fillMaxWidth()) { Text("Album") }
             }
         },
-        confirmButton = { Button(onClick = onAnalyze) { Text("I consent - analyze") } },
+        confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
+
+@Composable
+internal fun PhotoConsentDialog(
+    endpoint: String?,
+    onDismiss: () -> Unit,
+    onAnalyze: (Boolean) -> Unit,
+) {
+    var dontShowAgain by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Send photo for AI analysis?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("The photo will be sent to your private gateway and OpenAI.")
+                Text(endpoint ?: "Gateway not configured", style = MaterialTheme.typography.bodySmall)
+                Text("Nothing is saved until you review and confirm.")
+                Row(
+                    modifier = Modifier.clickable { dontShowAgain = !dontShowAgain },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = dontShowAgain, onCheckedChange = { dontShowAgain = it })
+                    Text("Don't show next time")
+                }
+            }
+        },
+        confirmButton = { Button(onClick = { onAnalyze(dontShowAgain) }) { Text("I consent") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
 @Composable
 internal fun UsdaSearchDialog(
     request: UsdaLookupRequest,
@@ -200,15 +239,15 @@ internal fun UsdaSearchDialog(
             request.photoDraft != null -> {
                 val weight = grams.toDoubleOrNull()?.takeIf { it > 0.0 }
                 if (weight == null) {
-                    error = "Enter the photographed amount in grams before filling missing USDA fields."
+                    error = "Enter the photographed amount in grams."
                     null
                 } else {
                     val merged = request.photoDraft.withMissingUsda(food, weight)
                     ReviewSeed(
-                        entry = merged.toConfirmedEntry("Missing photo fields filled from reviewed USDA ${food.dataType.wireValue} match ${food.fdcId}."),
+                        entry = merged.toConfirmedEntry("Photo fields filled from reviewed USDA ${food.dataType.wireValue} match ${food.fdcId}."),
                         title = "Review photo plus USDA",
                         sourceNotes = listOf(
-                            "Existing package-label or AI values were preserved; USDA filled only missing fields.",
+                            "Existing values were preserved; USDA added available fields.",
                             "USDA ${food.dataType.wireValue} #${food.fdcId}: ${food.description}.",
                         ),
                         photoDraft = merged,
@@ -319,6 +358,7 @@ internal fun UsdaSearchDialog(
 @Composable
 internal fun EntryEditorDialog(
     seed: ReviewSeed,
+    nutrientTargets: Map<NutrientKey, Double>,
     onDismiss: () -> Unit,
     onSave: (JournalEntry, Boolean) -> Unit,
     onFindUsda: (() -> Unit)? = null,
@@ -331,6 +371,7 @@ internal fun EntryEditorDialog(
     var unit by remember(seed) { mutableStateOf(existing?.amount?.unit ?: AmountUnit.SERVING) }
     var note by remember(seed) { mutableStateOf(existing?.note.orEmpty()) }
     var showAll by remember { mutableStateOf(false) }
+    var editingNutrient by remember { mutableStateOf<NutrientKey?>(null) }
     var review by remember(seed) { mutableStateOf(seed.readOnly) }
     var saveQuick by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -420,19 +461,17 @@ internal fun EntryEditorDialog(
                         }
                         reviewed?.let { entry ->
                             items(entry.nutrients.values.entries.sortedBy { it.key.ordinal }, key = { it.key.name }) { (key, value) ->
-                                val source = entry.nutrients.provenance[key]
-                                OutlinedCard {
-                                    Column(Modifier.padding(12.dp).fillMaxWidth()) {
-                                        Text("${key.label}: $value ${key.unit}", fontWeight = FontWeight.SemiBold)
-                                        Text(source?.sourceLabel ?: "Source unavailable", style = MaterialTheme.typography.bodySmall)
-                                        Text(if (source?.verified == true) "Verified field" else "Unverified field", style = MaterialTheme.typography.bodySmall)
+                                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                    NutrientProgressRow(key, value, nutrientTargets[key])
+                                    entry.nutrients.provenance[key]?.sourceLabel?.let {
+                                        Text(it, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                                     }
                                 }
                             }
                             item {
                                 val score = FoodScoreCalculator.calculate(entry.nutrients)
-                                SectionCard("Transparent food score") {
-                                    Text(score.score?.let { "$it / 100" } ?: "Not available")
+                                SectionCard("Food score") {
+                                    Text(score.score?.let { "$it / 100" } ?: "--")
                                     Text(score.unavailableReason ?: score.basis, style = MaterialTheme.typography.bodySmall)
                                     score.components.take(8).forEach { Text(it.explanation, style = MaterialTheme.typography.bodySmall) }
                                     Text(FoodScoreCalculator.DISCLAIMER, style = MaterialTheme.typography.bodySmall)
@@ -446,7 +485,7 @@ internal fun EntryEditorDialog(
                             }
                             if (onFindUsda != null) item {
                                 OutlinedButton(onClick = onFindUsda, modifier = Modifier.fillMaxWidth()) {
-                                    Text("Find USDA match to fill missing fields")
+                                    Text("Fill -- fields from USDA")
                                 }
                             }
                         }
@@ -478,13 +517,24 @@ internal fun EntryEditorDialog(
                         }
                         val keys = if (showAll) NutrientKey.entries else common
                         items(keys, key = { it.name }) { key ->
-                            OutlinedTextField(
-                                value = nutrientText[key].orEmpty(),
-                                onValueChange = { nutrientText[key] = it; edited[key] = true; error = null },
-                                label = { Text("${key.label} (${key.unit})") },
-                                modifier = Modifier.fillMaxWidth(),
-                                supportingText = { Text("Blank = missing; 0 = explicit zero") },
-                            )
+                            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                NutrientProgressRow(
+                                    key = key,
+                                    value = nutrientText[key]?.toDoubleOrNull(),
+                                    target = nutrientTargets[key],
+                                    onValueClick = { editingNutrient = key },
+                                )
+                                if (editingNutrient == key) {
+                                    OutlinedTextField(
+                                        value = nutrientText[key].orEmpty(),
+                                        onValueChange = { nutrientText[key] = it; edited[key] = true; error = null },
+                                        label = { Text(key.unit) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            }
                         }
                         item {
                             TextButton(onClick = { showAll = !showAll }) {
