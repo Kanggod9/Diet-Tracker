@@ -67,7 +67,7 @@ class SecureConfigStore(context: Context) {
     private fun secretKey(createIfMissing: Boolean): SecretKey {
         val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
-        check(createIfMissing) { "Device gateway key is missing" }
+        check(createIfMissing) { "Device gateway key is unavailable" }
 
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
         generator.init(

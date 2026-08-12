@@ -13,13 +13,15 @@ android {
         applicationId = "io.github.kanggod9.diettracker"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+    }
 
     val releaseKeyStore = providers.environmentVariable("DIET_TRACKER_KEYSTORE").orNull
     val releaseKeyAlias = providers.environmentVariable("DIET_TRACKER_KEY_ALIAS").orNull

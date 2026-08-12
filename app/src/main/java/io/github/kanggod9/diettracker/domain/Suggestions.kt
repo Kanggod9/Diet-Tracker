@@ -147,6 +147,12 @@ object GuidanceProfiles {
         retrievedOn = RETRIEVED_ON,
         disclaimer = GENERAL,
         targets = listOf(
+            GuidanceTarget(NutrientKey.ENERGY, 2_000.0, TargetDirection.REFERENCE, allowTrendLow = false),
+            GuidanceTarget(NutrientKey.TOTAL_FAT, 60.0, TargetDirection.REFERENCE, allowTrendLow = false),
+            GuidanceTarget(NutrientKey.SATURATED_FAT, 20.0, TargetDirection.UPPER_LIMIT),
+            GuidanceTarget(NutrientKey.TOTAL_CARBOHYDRATE, 250.0, TargetDirection.REFERENCE, allowTrendLow = false),
+            GuidanceTarget(NutrientKey.DIETARY_FIBER, 25.0, TargetDirection.MINIMUM),
+            GuidanceTarget(NutrientKey.PROTEIN, 55.0, TargetDirection.REFERENCE, allowTrendLow = false),
             GuidanceTarget(NutrientKey.SODIUM, 2_000.0, TargetDirection.UPPER_LIMIT),
             GuidanceTarget(
                 NutrientKey.ADDED_SUGAR,

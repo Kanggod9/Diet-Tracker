@@ -4,5 +4,5 @@ compatibility_date = "2026-08-11"
 workers_dev = false
 
 # Configure a custom HTTPS route before production use.
-# Store APP_ACCESS_TOKEN, OPENAI_API_KEY, OPENAI_MODEL, and USDA_API_KEY with
-# `wrangler secret put`; never write their values in this file.
+# Store APP_ACCESS_TOKEN, OPENAI_API_KEY, and OPENAI_MODEL with
+# `wrangler secret put`. USDA_API_KEY is optional; the fallback is DEMO_KEY.

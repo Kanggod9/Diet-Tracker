@@ -195,6 +195,10 @@ function requiredEnv(env, name) {
   if (typeof value !== "string" || !value.trim()) throw new HttpError(503, "Gateway provider is not configured");
   return value.trim();
 }
+export function usdaApiKey(env) {
+  const value = env.USDA_API_KEY;
+  return typeof value === "string" && value.trim() ? value.trim() : "DEMO_KEY";
+}
 
 export default {
   async fetch(request, env) {
@@ -309,7 +313,7 @@ async function searchUsda(request, env) {
   if (body.data_types.length === 0 || body.data_types.some((value) => !ALLOWED_USDA_TYPES.has(value))) {
     throw new HttpError(400, "Only USDA Foundation and SR Legacy are allowed");
   }
-  const key = requiredEnv(env, "USDA_API_KEY");
+  const key = usdaApiKey(env);
   const url = new URL("https://api.nal.usda.gov/fdc/v1/foods/search");
   url.searchParams.set("api_key", key);
   const response = await fetch(url, {
@@ -340,7 +344,7 @@ async function getUsdaFood(request, env) {
   if (body?.schema_version !== 1 || !Number.isSafeInteger(id) || id <= 0) {
     throw new HttpError(400, "Invalid USDA food request");
   }
-  const key = requiredEnv(env, "USDA_API_KEY");
+  const key = usdaApiKey(env);
   const url = new URL(`https://api.nal.usda.gov/fdc/v1/food/${id}`);
   url.searchParams.set("api_key", key);
   const response = await fetch(url);

@@ -7,7 +7,9 @@ Required encrypted Worker secrets:
 - `APP_ACCESS_TOKEN`: random 16+ character token also entered into Android encrypted settings.
 - `OPENAI_API_KEY`: OpenAI project API key. ChatGPT Plus does not include API billing.
 - `OPENAI_MODEL`: a vision-capable Responses API model enabled for the project.
-- `USDA_API_KEY`: data.gov key for FoodData Central.
+Optional encrypted Worker secret:
+
+- `USDA_API_KEY`: private data.gov key for FoodData Central. If absent, the Worker uses `DEMO_KEY`.
 
 Copy `wrangler.toml.example` to an untracked `wrangler.toml`, configure a custom HTTPS route, then set each value with `wrangler secret put NAME`. Do not paste secrets into source, Gradle files, issues, screenshots, or release assets.
 

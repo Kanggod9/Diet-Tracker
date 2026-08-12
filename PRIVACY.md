@@ -5,24 +5,24 @@ Diet Tracker is local-first. The app contains no analytics or advertising SDK, d
 ## Stored on the device
 
 - Confirmed journal entries and nutrient provenance.
-- Quick foods, selected guidance profile, locally generated suggestions, Health Connect write receipts, and cached USDA reference records.
-- The configured gateway URL and an app-to-gateway token. The token is encrypted with a non-exportable Android Keystore key.
+- Quick foods, target profile/custom values, consent and Health Connect preferences, locally generated suggestions, Health Connect write receipts, and cached USDA reference records.
+- A user-configured gateway URL and app-to-gateway token. The token is encrypted with a non-exportable Android Keystore key.
 
-OpenAI, USDA, and signing credentials are never stored by the Android app. JSON exports explicitly exclude gateway credentials. Delete all removes the database and encrypted gateway configuration from the device.
+The public APK contains no preconfigured gateway or credential. OpenAI, USDA, and signing credentials are never stored by the Android app. JSON exports exclude gateway credentials but include local journal and non-secret settings. Delete all removes the local database and encrypted gateway configuration from the device.
 
 ## Photo boundary
 
-A photo leaves the device only after the user chooses it and accepts a consent dialog for that specific photo. The app reads the URI into memory with an 8 MB cap, sends it to the configured private HTTPS gateway, and does not copy it into SQLite or app files. The gateway sends it to the OpenAI API with `store: false` and returns a temporary structured draft. Discarding the consent or review screen creates no journal entry.
+A photo leaves the device only after the user explicitly chooses Camera or Album. The app shows a consent dialog before transmission unless the user has deliberately enabled `Don't show next time`; that preference can be cleared with Delete all. The app reads the URI into memory with an 8 MB cap, sends it to the configured private HTTPS gateway, and does not copy it into SQLite or permanent app files. Cancelling or discarding review creates no journal entry.
 
-`store: false` controls OpenAI application-state storage; the gateway operator remains responsible for disclosing deployment logs, subprocessors, abuse monitoring, region, and retention. The included Worker enables no application logging or storage, but platform-level controls must still be configured by its operator.
+The gateway sends the image to the OpenAI API with `store: false` and returns a temporary structured draft. `store: false` controls OpenAI application-state storage; the gateway operator remains responsible for disclosing deployment logs, subprocessors, abuse monitoring, region, and retention. The included Worker enables no application logging or storage, but platform-level controls must still be configured by its operator.
 
 ## USDA boundary
 
-USDA search sends only the typed food query and allowed data types. Food detail sends an FDC id. Photos, journal history, guidance settings, and Health Connect data are not included. Results are restricted to Foundation and SR Legacy and cached locally for up to 30 days.
+USDA search sends only the typed food query and allowed data types to the configured private gateway. Food detail sends an FDC id. Photos, journal records, targets, and Health Connect data are not included. Results are restricted to Foundation and SR Legacy and cached locally for up to 30 days. The Android app does not contain or receive the gateway's USDA API key.
 
 ## Health Connect boundary
 
-The app requests Nutrition and Hydration read/write permissions only through the Health Connect permission screen. It reads the last 30 days only after the user taps Review import, then shows a selection dialog before saving anything locally. It writes only user-selected local records after a second confirmation. There is no background or silent sync.
+The app requests Nutrition and Hydration read/write permissions only through the Health Connect permission screen. It reads the last 30 days only after the user requests import review and shows a selection dialog before saving anything locally. A write occurs after manual confirmation or for a newly confirmed log while the user has enabled Auto Write. Auto Write does not run a background service or retroactively upload existing logs.
 
 ## User control
 

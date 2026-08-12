@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import worker, { NUTRIENT_UNITS, PHOTO_SCHEMA, normalizeUsdaFood } from "../src/worker.js";
+import worker, { NUTRIENT_UNITS, PHOTO_SCHEMA, normalizeUsdaFood, usdaApiKey } from "../src/worker.js";
 
 test("strict photo schema covers every Android nutrient", () => {
   assert.equal(PHOTO_SCHEMA.additionalProperties, false);
@@ -38,4 +38,8 @@ test("gateway rejects missing bearer token before any provider call", async () =
   );
   assert.equal(response.status, 401);
   assert.equal(response.headers.get("cache-control"), "no-store");
+});
+test("USDA uses DEMO_KEY unless a private key is configured", () => {
+  assert.equal(usdaApiKey({}), "DEMO_KEY");
+  assert.equal(usdaApiKey({ USDA_API_KEY: " private-key " }), "private-key");
 });

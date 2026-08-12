@@ -26,13 +26,13 @@ data class FoodScore(
 )
 
 object FoodScoreCalculator {
-    const val FORMULA_VERSION = "DT-USDA-DV-1"
+    const val FORMULA_VERSION = "DT-DV-2"
     const val DISCLAIMER =
-        "Informational nutrient-density indicator; not an FDA score, not medical advice, and not a judgement of a food."
+        "Informational nutrient-density indicator; not an FDA score and not medical advice."
 
     private const val DAILY_ENERGY_KCAL = 2_000.0
     private const val SCORE_BASIS_KCAL = 100.0
-    private const val MINIMUM_COMPLETENESS = 0.5
+
 
     private val encouraged = linkedMapOf(
         NutrientKey.DIETARY_FIBER to 28.0,
@@ -52,34 +52,34 @@ object FoodScoreCalculator {
     )
 
     /**
-     * Version 1 compares verified Foundation/SR Legacy nutrient density per 100 kcal with the FDA Daily Value
-     * density implied by a 2,000 kcal day. Missing nutrients are never treated as zero. The positive and limiting
-     * pools each contribute at most 50 points around a neutral base of 50.
+     * Version 2 compares any reported nutrient values with FDA Daily Value density per 100 kcal. Values may come
+     * from USDA, a package label, an AI draft, Health Connect, or manual review. Unreported nutrients are excluded
+     * rather than treated as zero, and both the positive and limiting pools contribute around a neutral base of 50.
      */
     fun calculate(nutrients: Nutrients): FoodScore {
-        val basis = "Verified USDA Foundation/SR Legacy values per 100 kcal compared with FDA Daily Values."
-        val energy = nutrients.verifiedUsdaValue(NutrientKey.ENERGY)
-            ?: return unavailable(nutrients, basis, "A verified USDA energy value is required.")
+        val basis = "Reported values per 100 kcal compared with FDA Daily Values."
+        val energy = nutrients[NutrientKey.ENERGY]
+            ?: return unavailable(nutrients, basis, "Energy is required.")
         if (energy == 0.0) {
             return unavailable(
                 nutrients,
                 basis,
-                "A per-100-kcal score is not applicable to a verified zero-energy food or drink.",
+                "A per-100-kcal score is not applicable to a zero-energy food or drink.",
             )
         }
 
         val positiveValues = encouraged.mapNotNull { (key, dailyValue) ->
-            nutrients.verifiedUsdaValue(key)?.let { Triple(key, dailyValue, it) }
+            nutrients[key]?.let { Triple(key, dailyValue, it) }
         }
         val limitValues = limited.mapNotNull { (key, dailyValue) ->
-            nutrients.verifiedUsdaValue(key)?.let { Triple(key, dailyValue, it) }
+            nutrients[key]?.let { Triple(key, dailyValue, it) }
         }
         val expectedCount = encouraged.size + limited.size
         val presentCount = positiveValues.size + limitValues.size
         val completeness = presentCount.toDouble() / expectedCount
-        val missing = (encouraged.keys + limited.keys).filter { nutrients.verifiedUsdaValue(it) == null }
+        val missing = (encouraged.keys + limited.keys).filter { nutrients[it] == null }
 
-        if (completeness < MINIMUM_COMPLETENESS || positiveValues.size < 3 || limitValues.size < 2) {
+        if (positiveValues.isEmpty() || limitValues.isEmpty()) {
             return FoodScore(
                 score = null,
                 formulaVersion = FORMULA_VERSION,
@@ -87,8 +87,7 @@ object FoodScoreCalculator {
                 completeness = completeness,
                 missingComponents = missing,
                 basis = basis,
-                unavailableReason =
-                    "At least 50% of score fields, including three encouraged and two limiting nutrients, are required.",
+                unavailableReason = "At least one encouraged and one limiting nutrient are required.",
             )
         }
 
@@ -144,13 +143,13 @@ object FoodScoreCalculator {
 
     private fun unavailable(nutrients: Nutrients, basis: String, reason: String): FoodScore {
         val all = encouraged.keys + limited.keys
-        val present = all.count { nutrients.verifiedUsdaValue(it) != null }
+        val present = all.count { nutrients[it] != null }
         return FoodScore(
             score = null,
             formulaVersion = FORMULA_VERSION,
             components = emptyList(),
             completeness = present.toDouble() / all.size,
-            missingComponents = all.filter { nutrients.verifiedUsdaValue(it) == null },
+            missingComponents = all.filter { nutrients[it] == null },
             basis = basis,
             unavailableReason = reason,
         )

@@ -5,9 +5,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class FoodScoreTest {
-    @Test fun scoreRejectsUnverifiedValues() {
-        val n = Nutrients(mapOf(NutrientKey.ENERGY to 100.0, NutrientKey.DIETARY_FIBER to 8.0))
-        assertNull(FoodScoreCalculator.calculate(n).score)
+    @Test fun scoreAcceptsReportedValuesWithoutUsdaVerification() {
+        val n = Nutrients(
+            mapOf(
+                NutrientKey.ENERGY to 100.0,
+                NutrientKey.DIETARY_FIBER to 8.0,
+                NutrientKey.SODIUM to 100.0,
+            ),
+        )
+        assertNotNull(FoodScoreCalculator.calculate(n).score)
     }
 
     @Test fun verifiedUsdaFieldsProduceExplainableScore() {
@@ -25,5 +31,6 @@ class FoodScoreTest {
         assertNotNull(result.score)
         assertTrue(result.components.all { it.explanation.isNotBlank() })
         assertTrue(FoodScoreCalculator.DISCLAIMER.contains("not medical advice"))
+        assertFalse(FoodScoreCalculator.DISCLAIMER.contains("judgement"))
     }
 }
