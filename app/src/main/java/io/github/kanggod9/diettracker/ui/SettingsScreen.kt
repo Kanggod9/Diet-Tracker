@@ -22,7 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -58,7 +57,6 @@ internal fun SettingsScreen(
     var token by remember(gatewayRevision) { mutableStateOf("") }
     var gatewayError by remember { mutableStateOf<String?>(null) }
     var granted by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var autoWrite by remember { mutableStateOf(store.setting(HEALTH_AUTO_WRITE) == "true") }
     LaunchedEffect(gatewayRevision, healthPermissionRevision) {
         granted = runCatching { healthGateway.grantedPermissions() }.getOrDefault(emptySet())
     }
@@ -130,20 +128,6 @@ internal fun SettingsScreen(
                     enabled = healthAvailable,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Permissions") }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Auto Write", fontWeight = FontWeight.SemiBold)
-                        Text("Write new logs automatically", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Switch(
-                        checked = autoWrite,
-                        onCheckedChange = {
-                            autoWrite = it
-                            store.setSetting(HEALTH_AUTO_WRITE, it.toString())
-                        },
-                        enabled = healthAvailable && allHealthPermissions,
-                    )
-                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = onImportHealth,

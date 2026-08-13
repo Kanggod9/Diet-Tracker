@@ -41,6 +41,16 @@ class IntegrationMappingTest {
         assertEquals(DataSet.USDA_FOUNDATION, merged.nutrients.provenance[NutrientKey.PROTEIN]?.dataSet)
     }
 
+    @Test fun aiContractAcceptsBothAsAnEditableEstimateKind() {
+        val draft = AiContractParser.parse(
+            """{"schema_version":1,"source_type":"INGREDIENT","name":"Soup and drink","generic_name":"meal","usda_query":"soup","kind":"BOTH","amount_value":1.0,"amount_unit":"SERVING","meal_type":"LUNCH","confidence":0.7,"nutrients":{"ENERGY":{"value":300.0,"unit":"kcal","basis":"estimated portion","source":"AI_ESTIMATE"},"WATER":{"value":250.0,"unit":"g","basis":"estimated liquid","source":"AI_ESTIMATE"}},"warnings":[]}""",
+        )
+
+        assertEquals(EntryKind.BOTH, draft.kind)
+        assertEquals(300.0, draft.nutrients[NutrientKey.ENERGY]!!, 0.0)
+        assertEquals(250.0, draft.nutrients[NutrientKey.WATER]!!, 0.0)
+    }
+
     @Test fun usdaContractAllowsOnlyFoundationAndSrLegacy() {
         val contract = UsdaSearchContract("oats")
         assertEquals("Foundation,SR Legacy", contract.dataTypeParameter)

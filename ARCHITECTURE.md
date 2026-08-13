@@ -7,7 +7,7 @@ Diet Tracker separates deterministic local logic from explicit external boundari
 - `domain/`: journal and quick-food models, nullable nutrient vocabulary, field provenance, natural-language parsing, USDA scaling, score formula, logged-day trends, and regional/custom targets.
 - `data/`: app-private SQLite repository, versioned nutrient codec, USDA cache, and Android-Keystore-backed gateway configuration.
 - `integration/`: bounded HTTPS client, OpenAI photo contract, USDA allowlist and normalization contract, and Health Connect nutrition/hydration mapping and read/write gateway.
-- `ui/`: Compose Logs calendar/dashboard, Analysis, Target, Settings, logging/review dialogs, Health Connect review, export, and delete-all confirmation.
+- `ui/`: Compose Logs calendar/swipe dashboard, grouped Journal, Target cards, shared nutrient history, Settings, logging/review dialogs, Health Connect review, export, and delete-all confirmation.
 
 All journal persistence is downstream of an explicit draft confirmation. Photo bytes and unconfirmed drafts remain transient. Missing nutrient values are omitted rather than converted to zero. Edits replace an edited field's source with unverified manual provenance while untouched sources retain their provenance.
 
@@ -37,4 +37,4 @@ The Android app never calls OpenAI or data.gov directly. A multi-user deployment
 
 ## Health Connect
 
-The app requests only Nutrition and Hydration read/write permissions. User-selected nutrition values map to `NutritionRecord`; water maps to `HydrationRecord`. Reads return in-memory entries for selection review. Writes occur after manual confirmation or for a newly confirmed entry while the user has enabled Auto Write. Auto Write is foreground event-driven; no scheduler or background service exists.
+The app requests only Nutrition and Hydration read/write permissions. User-selected nutrition values map to `NutritionRecord`; water maps to `HydrationRecord`. Reads return in-memory entries for selection review. App-created logs use stable Health Connect client record IDs. While permissions remain granted, foreground create/edit/delete events write, replace, or remove the corresponding records so only the latest local version remains. There is no scheduler or background service.

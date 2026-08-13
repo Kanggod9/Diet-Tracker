@@ -60,7 +60,7 @@ class GatewayHttpClient(
             http.setRequestProperty("Authorization", "Bearer ${connection.accessToken}")
             http.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             http.setRequestProperty("Accept", "application/json")
-            http.setRequestProperty("X-Diet-Tracker-Client", "android/1.1.0")
+            http.setRequestProperty("X-Diet-Tracker-Client", "android/1.2.1")
             http.outputStream.use { it.write(body) }
 
             val status = http.responseCode

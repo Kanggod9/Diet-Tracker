@@ -62,7 +62,7 @@ object HealthNutritionMapper {
             startZoneOffset = offset,
             endTime = end,
             endZoneOffset = offset,
-            metadata = Metadata.manualEntry(entry.id, clientRecordVersion),
+            metadata = Metadata.manualEntry(HealthConnectGateway.nutritionClientRecordId(entry.id), clientRecordVersion),
             biotin = nutrients.mass(NutrientKey.BIOTIN),
             caffeine = nutrients.mass(NutrientKey.CAFFEINE),
             calcium = nutrients.mass(NutrientKey.CALCIUM),
@@ -197,7 +197,7 @@ object HealthNutritionMapper {
             endTime = start.plusSeconds(60),
             endZoneOffset = offset,
             volume = milliliters.milliliters,
-            metadata = Metadata.manualEntry("${entry.id}-hydration", clientRecordVersion),
+            metadata = Metadata.manualEntry(HealthConnectGateway.hydrationClientRecordId(entry.id), clientRecordVersion),
         )
     }
 
@@ -266,6 +266,15 @@ object HealthNutritionMapper {
     }
 }
 
+internal suspend fun replaceHealthEntry(
+    entry: JournalEntry,
+    delete: suspend (String) -> Unit,
+    write: suspend (JournalEntry) -> HealthWriteResult,
+): HealthWriteResult {
+    delete(entry.id)
+    return write(entry)
+}
+
 class HealthConnectGateway(private val context: Context) {
     val permissions: Set<String> = setOf(
         HealthPermission.getReadPermission(NutritionRecord::class),
@@ -325,6 +334,26 @@ class HealthConnectGateway(private val context: Context) {
         return HealthWriteResult(nutritionId, hydrationId)
     }
 
+    suspend fun replaceEntry(entry: JournalEntry): HealthWriteResult =
+        replaceHealthEntry(entry, ::deleteEntry, ::writeEntry)
+
+    suspend fun deleteEntry(entryId: String) {
+        val client = clientOrNull() ?: error("Health Connect is unavailable")
+        check(canReadAndWrite(client.permissionController.getGrantedPermissions())) {
+            "Health Connect nutrition and hydration permissions are required"
+        }
+        client.deleteRecords(
+            NutritionRecord::class,
+            emptyList(),
+            listOf(nutritionClientRecordId(entryId)),
+        )
+        client.deleteRecords(
+            HydrationRecord::class,
+            emptyList(),
+            listOf(hydrationClientRecordId(entryId)),
+        )
+    }
+
     suspend fun readEntries(start: Instant, end: Instant): List<JournalEntry> {
         require(start.isBefore(end))
         val client = clientOrNull() ?: error("Health Connect is unavailable")
@@ -380,5 +409,8 @@ class HealthConnectGateway(private val context: Context) {
     companion object {
         const val NUTRITION_RECORD = "nutrition"
         const val HYDRATION_RECORD = "hydration"
+
+        internal fun nutritionClientRecordId(entryId: String): String = entryId
+        internal fun hydrationClientRecordId(entryId: String): String = "$entryId-hydration"
     }
 }

@@ -1,5 +1,8 @@
 package io.github.kanggod9.diettracker.ui
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,16 +11,20 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -29,9 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.kanggod9.diettracker.data.LocalStore
@@ -40,52 +45,24 @@ import io.github.kanggod9.diettracker.domain.NutrientKey
 import io.github.kanggod9.diettracker.domain.NutrientTargets
 import java.util.Locale
 
-private val targetOrder = listOf(
-    NutrientKey.ENERGY,
-    NutrientKey.PROTEIN,
-    NutrientKey.TOTAL_CARBOHYDRATE,
-    NutrientKey.TOTAL_FAT,
-    NutrientKey.SATURATED_FAT,
-    NutrientKey.DIETARY_FIBER,
-    NutrientKey.TOTAL_SUGAR,
-    NutrientKey.ADDED_SUGAR,
-    NutrientKey.SODIUM,
-    NutrientKey.CHOLESTEROL,
-    NutrientKey.CAFFEINE,
-    NutrientKey.WATER,
-) + NutrientKey.entries.filterNot {
-    it in setOf(
-        NutrientKey.ENERGY,
-        NutrientKey.PROTEIN,
-        NutrientKey.TOTAL_CARBOHYDRATE,
-        NutrientKey.TOTAL_FAT,
-        NutrientKey.SATURATED_FAT,
-        NutrientKey.DIETARY_FIBER,
-        NutrientKey.TOTAL_SUGAR,
-        NutrientKey.ADDED_SUGAR,
-        NutrientKey.SODIUM,
-        NutrientKey.CHOLESTEROL,
-        NutrientKey.CAFFEINE,
-        NutrientKey.WATER,
-    )
-}
-
 @Composable
 internal fun TargetScreen(
     store: LocalStore,
     region: GuidanceRegion,
     onRegionChanged: (GuidanceRegion) -> Unit,
     onTargetsChanged: () -> Unit,
+    onNutrientSelected: (NutrientKey) -> Unit,
 ) {
     var revision by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<NutrientKey?>(null) }
     val settings = remember(revision, region) { store.settings() }
     val targets = remember(settings, region) { NutrientTargets.resolved(region, settings) }
+    val visibleKeys = dashboardNutrientOrder
 
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Text("Target", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold) }
         item {
@@ -99,32 +76,37 @@ internal fun TargetScreen(
                 }
             }
         }
-        items(targetOrder, key = { it.name }) { key ->
+        items(visibleKeys, key = { it.name }) { key ->
             val target = targets[key]
             val custom = settings[NutrientTargets.settingKey(key)] != null
-            Column(
-                Modifier.fillMaxWidth().clickable { editing = key }.padding(vertical = 5.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+            OutlinedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "Target card ${key.name}" }
+                    .clickable { onNutrientSelected(key) },
+                border = BorderStroke(1.dp, Turquoise.copy(alpha = 0.72f)),
             ) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(key.label, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(key.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (custom) "Custom" else region.displayName,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     Text(
                         target?.let { "${targetValue(it)} ${key.unit}" } ?: "--",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
+                        color = DarkTurquoise,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
                     )
+                    IconButton(onClick = { editing = key }) {
+                        Icon(Icons.Outlined.Edit, "Edit ${key.label} target")
+                    }
                 }
-                LinearProgressIndicator(
-                    progress = { if (target != null) 1f else 0f },
-                    modifier = Modifier.fillMaxWidth().height(9.dp),
-                    color = Sage,
-                    trackColor = Color(0xFFE4E9E5),
-                )
-                Text(
-                    if (custom) "Custom" else region.displayName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray,
-                )
             }
         }
         item {

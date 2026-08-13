@@ -11,6 +11,9 @@ data class ScoreComponent(
     val direction: ScoreDirection,
     val points: Int,
     val valuePer100Kcal: Double,
+    val expectedPer100Kcal: Double,
+    val densityRatio: Double,
+    val maximumPoints: Int,
     val dailyValue: Double,
     val explanation: String,
 )
@@ -128,16 +131,28 @@ object FoodScoreCalculator {
         val signedPoints = (normalized * weight * if (direction == ScoreDirection.ENCOURAGE) 1 else -1)
             .roundToInt()
         val sign = if (signedPoints > 0) "+" else ""
+        val action = if (direction == ScoreDirection.ENCOURAGE) {
+            "adds points because higher nutrient density is encouraged"
+        } else {
+            "deducts points because lower intake is encouraged"
+        }
+        val maximumPoints = weight.roundToInt()
         return ScoreComponent(
             key = key,
             label = key.label,
             direction = direction,
             points = signedPoints,
             valuePer100Kcal = per100Kcal,
+            expectedPer100Kcal = expectedPer100Kcal,
+            densityRatio = densityRatio,
+            maximumPoints = maximumPoints,
             dailyValue = dailyValue,
             explanation =
-                "$sign$signedPoints points: ${format(per100Kcal)} ${key.unit}/100 kcal; " +
-                    "FDA DV ${format(dailyValue)} ${key.unit}.",
+                "$sign$signedPoints points - ${key.label} $action: " +
+                    "${format(per100Kcal)} ${key.unit}/100 kcal versus " +
+                    "${format(expectedPer100Kcal)} ${key.unit}/100 kcal at FDA Daily Value density " +
+                    "(${format(densityRatio * 100.0)}%); maximum " +
+                    "${if (direction == ScoreDirection.ENCOURAGE) "+" else "-"}$maximumPoints points.",
         )
     }
 
