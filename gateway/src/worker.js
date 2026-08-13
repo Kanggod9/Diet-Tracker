@@ -77,7 +77,7 @@ export const PHOTO_SCHEMA = Object.freeze({
     name: { type: "string", minLength: 1, maxLength: 120 },
     generic_name: { type: "string", maxLength: 120 },
     usda_query: { type: "string", maxLength: 160 },
-    kind: { type: "string", enum: ["FOOD", "DRINK"] },
+    kind: { type: "string", enum: ["FOOD", "DRINK", "BOTH"] },
     amount_value: { type: "number", exclusiveMinimum: 0, maximum: 100000 },
     amount_unit: { type: "string", enum: ["GRAM", "MILLILITRE", "SERVING"] },
     meal_type: { type: "string", enum: ["BREAKFAST", "LUNCH", "DINNER", "SNACK", "LATE_NIGHT", "COOKING_OIL", "UNKNOWN"] },

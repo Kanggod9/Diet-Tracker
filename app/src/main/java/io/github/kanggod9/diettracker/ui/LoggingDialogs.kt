@@ -1,4 +1,8 @@
 package io.github.kanggod9.diettracker.ui
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.Icons
 
 import android.content.Context
 import android.net.Uri
@@ -80,6 +84,7 @@ internal data class UsdaLookupRequest(
     val query: String,
     val parsed: ParsedManualEntry? = null,
     val photoDraft: PhotoDraft? = null,
+    val returnSeed: ReviewSeed? = null,
 )
 
 internal data class PhotoPayload(val bytes: ByteArray, val mimeType: String)
@@ -218,6 +223,7 @@ internal fun PhotoConsentDialog(
 internal fun UsdaSearchDialog(
     request: UsdaLookupRequest,
     dataSource: UsdaFoodDataSource,
+    onBack: () -> Unit,
     onDismiss: () -> Unit,
     onReview: (ReviewSeed) -> Unit,
 ) {
@@ -304,8 +310,19 @@ internal fun UsdaSearchDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
-                    Text("USDA FoodData Central", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("Only Foundation and SR Legacy records are accepted.")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back")
+                        }
+                        Column {
+                            Text(
+                                "USDA FoodData Central",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text("Only Foundation and SR Legacy records are accepted.")
+                        }
+                    }
                     OutlinedTextField(
                         query,
                         { query = it; error = null },
@@ -441,11 +458,16 @@ internal fun EntryEditorDialog(
             color = MaterialTheme.colorScheme.surface,
         ) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    if (review) "Review before saving" else seed.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back")
+                    }
+                    Text(
+                        if (review) "Review before saving" else seed.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
                 LazyColumn(
                     Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -470,11 +492,9 @@ internal fun EntryEditorDialog(
                             }
                             item {
                                 val score = FoodScoreCalculator.calculate(entry.nutrients)
-                                SectionCard("Food score") {
-                                    Text(score.score?.let { "$it / 100" } ?: "--")
-                                    Text(score.unavailableReason ?: score.basis, style = MaterialTheme.typography.bodySmall)
-                                    score.components.take(8).forEach { Text(it.explanation, style = MaterialTheme.typography.bodySmall) }
-                                    Text(FoodScoreCalculator.DISCLAIMER, style = MaterialTheme.typography.bodySmall)
+                                SectionCard("Food Score") {
+                                    Text(score.score?.let { "$it / 100" } ?: "--", style = MaterialTheme.typography.titleLarge)
+                                    FoodScoreDetails(score)
                                 }
                             }
                             if (!seed.readOnly) item {
@@ -590,7 +610,7 @@ internal fun HealthExportDialog(
     onConfirm: (List<JournalEntry>) -> Unit,
 ) = EntrySelectionDialog(
     title = "Write to Health Connect",
-    body = "Only selected records are written after this confirmation. There is no background sync.",
+    body = "Selected records are replaced in Health Connect. Future edits and deletions stay synchronized while permissions remain granted.",
     confirmLabel = "Write selected",
     entries = entries,
     onDismiss = onDismiss,

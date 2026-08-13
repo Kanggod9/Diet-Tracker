@@ -5,7 +5,11 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
 
-enum class EntryKind(val displayName: String) { FOOD("Food"), DRINK("Drink") }
+enum class EntryKind(val displayName: String) {
+    FOOD("Food"),
+    DRINK("Drink"),
+    BOTH("Both"),
+}
 
 enum class MealType(val displayName: String) {
     BREAKFAST("Breakfast"),
@@ -47,9 +51,9 @@ enum class NutrientKey(val label: String, val unit: String) {
     TOTAL_CARBOHYDRATE("Carbohydrate", "g"),
     TOTAL_FAT("Fat", "g"),
     SATURATED_FAT("Saturated fat", "g"),
-    MONOUNSATURATED_FAT("Monounsaturated fat", "g"),
-    POLYUNSATURATED_FAT("Polyunsaturated fat", "g"),
-    UNSATURATED_FAT("Unsaturated fat", "g"),
+    MONOUNSATURATED_FAT("MUFA", "g"),
+    POLYUNSATURATED_FAT("PUFA", "g"),
+    UNSATURATED_FAT("Unsat. fat", "g"),
     TRANS_FAT("Trans fat", "g"),
     DIETARY_FIBER("Dietary fibre", "g"),
     TOTAL_SUGAR("Total sugar", "g"),

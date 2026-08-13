@@ -5,7 +5,7 @@ Diet Tracker is local-first. The app contains no analytics or advertising SDK, d
 ## Stored on the device
 
 - Confirmed journal entries and nutrient provenance.
-- Quick foods, target profile/custom values, consent and Health Connect preferences, locally generated suggestions, Health Connect write receipts, and cached USDA reference records.
+- Quick foods, target profile/custom values, photo-consent preference, locally generated suggestions, Health Connect write receipts, and cached USDA reference records.
 - A user-configured gateway URL and app-to-gateway token. The token is encrypted with a non-exportable Android Keystore key.
 
 The public APK contains no preconfigured gateway or credential. OpenAI, USDA, and signing credentials are never stored by the Android app. JSON exports exclude gateway credentials but include local journal and non-secret settings. Delete all removes the local database and encrypted gateway configuration from the device.
@@ -22,7 +22,7 @@ USDA search sends only the typed food query and allowed data types to the config
 
 ## Health Connect boundary
 
-The app requests Nutrition and Hydration read/write permissions only through the Health Connect permission screen. It reads the last 30 days only after the user requests import review and shows a selection dialog before saving anything locally. A write occurs after manual confirmation or for a newly confirmed log while the user has enabled Auto Write. Auto Write does not run a background service or retroactively upload existing logs.
+The app requests Nutrition and Hydration read/write permissions only through the Health Connect permission screen. It reads the last 30 days only after the user requests import review and shows a selection dialog before saving anything locally. While permissions remain granted, app-created logs are written on confirmation, replaced when edited, and removed when deleted. These foreground events do not use a background service and do not retroactively upload existing logs.
 
 ## User control
 

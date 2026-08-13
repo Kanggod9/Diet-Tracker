@@ -6,6 +6,7 @@ test("strict photo schema covers every Android nutrient", () => {
   assert.equal(PHOTO_SCHEMA.additionalProperties, false);
   assert.deepEqual(new Set(PHOTO_SCHEMA.properties.nutrients.required), new Set(Object.keys(NUTRIENT_UNITS)));
   assert.equal(PHOTO_SCHEMA.properties.nutrients.additionalProperties, false);
+  assert.deepEqual(PHOTO_SCHEMA.properties.kind.enum, ["FOOD", "DRINK", "BOTH"]);
 });
 
 test("USDA normalization keeps allowed type, units, and missing fields", () => {

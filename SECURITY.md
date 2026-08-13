@@ -15,7 +15,7 @@ Journal and Health Connect data, selected photos in transit, gateway and provide
 - OpenAI output is strict-schema requested and independently validated on both gateway and Android.
 - USDA data types are allowlisted on both gateway and Android. Field provenance distinguishes package label, AI estimate, USDA Foundation/SR Legacy, manual, and Health Connect sources.
 - Missing values remain missing. The food score and coverage-aware guidance do not silently treat missing as zero.
-- Health Connect permissions and imports remain explicit. Writes are either user-confirmed or triggered for a newly confirmed log while the user-controlled Auto Write switch is enabled. No scheduler or background service exists.
+- Health Connect permissions and imports remain explicit. Stable client record IDs allow permission-aware foreground create/edit/delete synchronization without duplicate versions. Imported third-party Health Connect records are not automatically written back. No scheduler or background service exists.
 - Android backup and cleartext traffic are disabled. The app contains no analytics or ad SDK.
 - Release signing values come only from environment variables; the persistent keystore remains outside the source repository.
 

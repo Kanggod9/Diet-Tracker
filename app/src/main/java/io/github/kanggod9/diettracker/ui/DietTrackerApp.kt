@@ -1,4 +1,11 @@
 package io.github.kanggod9.diettracker.ui
+import io.github.kanggod9.diettracker.domain.NutrientKey
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.material3.Typography
+import androidx.activity.compose.BackHandler
 
 import android.content.Context
 import android.net.Uri
@@ -9,10 +16,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -60,13 +65,38 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
-internal val Sage = Color(0xFF276749)
-internal val DeepSage = Color(0xFF174D38)
-internal val Mint = Color(0xFFE2F2E9)
-internal val CanvasColor = Color(0xFFF7F9F5)
+internal val Turquoise = Color(0xFF40E0D0)
+internal val DarkTurquoise = Color(0xFF0B6F70)
+internal val FlameOrange = Color(0xFFFF8C42)
+internal val Sage = Turquoise
+internal val DeepSage = DarkTurquoise
+internal val Mint = Color(0xFFE8F7F6)
+internal val CanvasColor = Color(0xFFF7F9F7)
+
+private val ComfortableTypography = Typography(
+    bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 17.sp, lineHeight = 25.sp),
+    bodyMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 15.sp, lineHeight = 22.sp),
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontSize = 24.sp,
+        lineHeight = 31.sp,
+        fontWeight = FontWeight.SemiBold,
+    ),
+    titleMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontSize = 18.sp,
+        lineHeight = 24.sp,
+        fontWeight = FontWeight.Medium,
+    ),
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontSize = 15.sp,
+        lineHeight = 20.sp,
+        fontWeight = FontWeight.Medium,
+    ),
+)
 
 private const val PHOTO_CONSENT_SKIP = "photo_consent_skip"
-internal const val HEALTH_AUTO_WRITE = "health_auto_write"
 
 @Composable
 fun DietTrackerApp(store: LocalStore) {
@@ -97,6 +127,8 @@ fun DietTrackerApp(store: LocalStore) {
     var gatewayRevision by remember { mutableIntStateOf(0) }
     var targetRevision by remember { mutableIntStateOf(0) }
     var healthPermissionRevision by remember { mutableIntStateOf(0) }
+    var nutrientHistory by remember { mutableStateOf<NutrientKey?>(null) }
+    var foodScoreHistoryOpen by remember { mutableStateOf(false) }
     var guidanceRegion by remember {
         mutableStateOf(
             runCatching {
@@ -143,10 +175,17 @@ fun DietTrackerApp(store: LocalStore) {
         if (store.setting(PHOTO_CONSENT_SKIP) == "true") analyzePhoto(uri) else pendingPhoto = uri
     }
 
-    fun writeToHealth(entry: JournalEntry, automatic: Boolean) {
+    fun writeToHealth(entry: JournalEntry, automatic: Boolean, replace: Boolean = false) {
         scope.launch {
+            if (automatic) {
+                val granted = runCatching { healthGateway.grantedPermissions() }.getOrDefault(emptySet())
+                if (!healthGateway.canReadAndWrite(granted) || !shouldAutoUpdateHealth(entry)) {
+                    message("Saved locally.")
+                    return@launch
+                }
+            }
             try {
-                val result = healthGateway.writeEntry(entry)
+                val result = if (replace) healthGateway.replaceEntry(entry) else healthGateway.writeEntry(entry)
                 val now = Instant.now()
                 result.nutritionRecordId?.let {
                     store.recordHealthExport(entry.id, HealthConnectGateway.NUTRITION_RECORD, it, now)
@@ -154,10 +193,30 @@ fun DietTrackerApp(store: LocalStore) {
                 result.hydrationRecordId?.let {
                     store.recordHealthExport(entry.id, HealthConnectGateway.HYDRATION_RECORD, it, now)
                 }
-                if (automatic) message("Saved locally and written to Health Connect.")
+                if (automatic) {
+                    message(if (replace) "Saved locally and updated Health Connect." else "Saved locally and written to Health Connect.")
+                }
             } catch (error: Exception) {
-                if (automatic) message("Saved locally. Auto Write failed: ${userFacingError(error)}")
+                if (automatic) message("Saved locally. Health Connect update failed: ${userFacingError(error)}")
                 else message(userFacingError(error))
+            }
+        }
+    }
+
+    fun deleteWithHealth(entry: JournalEntry) {
+        store.delete(entry.id)
+        refresh()
+        scope.launch {
+            val granted = runCatching { healthGateway.grantedPermissions() }.getOrDefault(emptySet())
+            if (!healthGateway.canReadAndWrite(granted) || !shouldAutoUpdateHealth(entry)) {
+                message("Deleted locally.")
+                return@launch
+            }
+            try {
+                healthGateway.deleteEntry(entry.id)
+                message("Deleted locally and removed from Health Connect.")
+            } catch (error: Exception) {
+                message("Deleted locally. Health Connect removal failed: ${userFacingError(error)}")
             }
         }
     }
@@ -218,93 +277,111 @@ fun DietTrackerApp(store: LocalStore) {
 
     MaterialTheme(
         colorScheme = lightColorScheme(
-            primary = Sage,
-            onPrimary = Color.White,
-            secondary = DeepSage,
+            primary = Turquoise,
+            onPrimary = Color(0xFF003C3A),
+            secondary = DarkTurquoise,
             background = CanvasColor,
             surface = Color.White,
             surfaceVariant = Mint,
         ),
+        typography = ComfortableTypography,
     ) {
+        BackHandler(enabled = nutrientHistory != null || foodScoreHistoryOpen) {
+            nutrientHistory = null
+            foodScoreHistoryOpen = false
+        }
         Scaffold(
             containerColor = CanvasColor,
             snackbarHost = { SnackbarHost(snackbar) },
             bottomBar = {
-                NavigationBar(containerColor = Color.White) {
-                    Screen.entries.forEach { item ->
-                        NavigationBarItem(
-                            selected = screen == item,
-                            onClick = { screen = item },
-                            icon = { Icon(item.icon, item.label) },
-                            label = { Text(item.label) },
-                        )
+                if (nutrientHistory == null && !foodScoreHistoryOpen) {
+                    NavigationBar(containerColor = Color.White) {
+                        Screen.entries.forEach { item ->
+                            NavigationBarItem(
+                                selected = screen == item,
+                                onClick = { screen = item },
+                                icon = { Icon(item.icon, item.label) },
+                                label = { Text(item.label) },
+                            )
+                        }
                     }
                 }
             },
-            floatingActionButton = {
-                if (screen == Screen.LOGS) ExtendedFloatingActionButton(
-                    onClick = { addOpen = true },
-                    icon = { Icon(Icons.Outlined.Add, null) },
-                    text = { Text("Log food or drink") },
-                )
-            },
         ) { padding ->
             Box(Modifier.padding(padding).fillMaxSize()) {
-                when (screen) {
-                    Screen.LOGS -> LogsScreen(
+                val historyKey = nutrientHistory
+                if (foodScoreHistoryOpen) {
+                    FoodScoreHistoryScreen(
                         entries = entries,
-                        quickFoods = quickFoods,
-                        selectedDate = selectedDate,
-                        targets = targets,
-                        suggestions = SuggestionEngine.generate(selectedAggregate, trend, currentProfile),
-                        onDateSelected = { selectedDate = it },
-                        onLog = { addOpen = true },
-                        onPhoto = {
-                            if (secureConfig.isConfigured()) photoSourceOpen = true
-                            else message("Configure the private gateway in Settings.")
-                        },
-                        onEdit = { reviewSeed = ReviewSeed(it, "Edit entry") },
-                        onDelete = { store.delete(it.id); refresh() },
+                        initialDate = selectedDate,
+                        onBack = { foodScoreHistoryOpen = false },
                     )
-                    Screen.ANALYSIS -> AnalysisScreen(entries)
-                    Screen.TARGET -> TargetScreen(
-                        store = store,
-                        region = guidanceRegion,
-                        onRegionChanged = {
-                            guidanceRegion = it
-                            store.setSetting("guidance_region", it.name)
-                            targetRevision++
-                        },
-                        onTargetsChanged = { targetRevision++ },
+                } else if (historyKey != null) {
+                    NutrientHistoryScreen(
+                        key = historyKey,
+                        entries = entries,
+                        initialDate = selectedDate,
+                        target = targets[historyKey],
+                        onBack = { nutrientHistory = null },
                     )
-                    Screen.SETTINGS -> SettingsScreen(
-                        store = store,
-                        secureConfig = secureConfig,
-                        healthGateway = healthGateway,
-                        gatewayRevision = gatewayRevision,
-                        healthPermissionRevision = healthPermissionRevision,
-                        onGatewayChanged = { gatewayRevision++; message("Gateway settings updated.") },
-                        onRequestHealthPermissions = { healthPermissions.launch(healthGateway.permissions) },
-                        onImportHealth = {
-                            scope.launch {
-                                busyMessage = "Reading Health Connect"
-                                try {
-                                    val now = Instant.now()
-                                    healthImports = healthGateway.readEntries(now.minus(30, ChronoUnit.DAYS), now.plusSeconds(1))
-                                } catch (error: Exception) {
-                                    message(userFacingError(error))
-                                } finally {
-                                    busyMessage = null
+                } else {
+                    when (screen) {
+                        Screen.LOGS -> LogsScreen(
+                            entries = entries,
+                            quickFoods = quickFoods,
+                            selectedDate = selectedDate,
+                            targets = targets,
+                            suggestions = SuggestionEngine.generate(selectedAggregate, trend, currentProfile),
+                            onDateSelected = { selectedDate = it },
+                            onLog = { addOpen = true },
+                            onNutrientSelected = { nutrientHistory = it },
+                            onEdit = { reviewSeed = ReviewSeed(it, "Edit entry") },
+                            onFoodScoreSelected = { foodScoreHistoryOpen = true },
+                            onDelete = ::deleteWithHealth,
+                        )
+                        Screen.TARGET -> TargetScreen(
+                            store = store,
+                            region = guidanceRegion,
+                            onRegionChanged = {
+                                guidanceRegion = it
+                                store.setSetting("guidance_region", it.name)
+                                targetRevision++
+                            },
+                            onTargetsChanged = { targetRevision++ },
+                            onNutrientSelected = { nutrientHistory = it },
+                        )
+                        Screen.SETTINGS -> SettingsScreen(
+                            store = store,
+                            secureConfig = secureConfig,
+                            healthGateway = healthGateway,
+                            gatewayRevision = gatewayRevision,
+                            healthPermissionRevision = healthPermissionRevision,
+                            onGatewayChanged = { gatewayRevision++; message("Gateway settings updated.") },
+                            onRequestHealthPermissions = { healthPermissions.launch(healthGateway.permissions) },
+                            onImportHealth = {
+                                scope.launch {
+                                    busyMessage = "Reading Health Connect"
+                                    try {
+                                        val now = Instant.now()
+                                        healthImports = healthGateway.readEntries(
+                                            now.minus(30, ChronoUnit.DAYS),
+                                            now.plusSeconds(1),
+                                        )
+                                    } catch (error: Exception) {
+                                        message(userFacingError(error))
+                                    } finally {
+                                        busyMessage = null
+                                    }
                                 }
-                            }
-                        },
-                        onExportHealth = { healthExportOpen = true },
-                        onExportJson = {
-                            pendingExportJson = ExportJson.encode(store.snapshot())
-                            exportDocument.launch("diet-tracker-${LocalDate.now()}.json")
-                        },
-                        onDeleteAll = { deleteAllOpen = true },
-                    )
+                            },
+                            onExportHealth = { healthExportOpen = true },
+                            onExportJson = {
+                                pendingExportJson = ExportJson.encode(store.snapshot())
+                                exportDocument.launch("diet-tracker-${LocalDate.now()}.json")
+                            },
+                            onDeleteAll = { deleteAllOpen = true },
+                        )
+                    }
                 }
             }
         }
@@ -359,14 +436,14 @@ fun DietTrackerApp(store: LocalStore) {
                     if (saveQuick) store.saveQuickFood(datedEntry.toQuickFood())
                     refresh()
                     reviewSeed = null
-                    if (shouldAutoWrite(isNew, store.setting(HEALTH_AUTO_WRITE))) {
-                        writeToHealth(datedEntry, automatic = true)
-                    } else {
-                        message("Saved locally.")
-                    }
+                    writeToHealth(datedEntry, automatic = true, replace = !isNew)
+
                 },
                 onFindUsda = seed.photoDraft?.let { draft ->
-                    { reviewSeed = null; usdaRequest = UsdaLookupRequest(draft.usdaQuery, photoDraft = draft) }
+                    {
+                        reviewSeed = null
+                        usdaRequest = UsdaLookupRequest(draft.usdaQuery, photoDraft = draft, returnSeed = seed)
+                    }
                 },
             )
         }
@@ -375,6 +452,15 @@ fun DietTrackerApp(store: LocalStore) {
             UsdaSearchDialog(
                 request = request,
                 dataSource = usdaSource,
+                onBack = {
+                    val returnSeed = request.returnSeed
+                    usdaRequest = null
+                    if (returnSeed != null) {
+                        reviewSeed = returnSeed
+                    } else {
+                        addOpen = true
+                    }
+                },
                 onDismiss = { usdaRequest = null },
                 onReview = { usdaRequest = null; reviewSeed = it },
             )
@@ -419,7 +505,7 @@ fun DietTrackerApp(store: LocalStore) {
                     var written = 0
                     try {
                         selected.forEach { entry ->
-                            val result = healthGateway.writeEntry(entry)
+                            val result = healthGateway.replaceEntry(entry)
                             val now = Instant.now()
                             result.nutritionRecordId?.let {
                                 store.recordHealthExport(entry.id, HealthConnectGateway.NUTRITION_RECORD, it, now)
@@ -469,7 +555,7 @@ private fun createCameraCapture(context: Context): Pair<Uri, File> {
     return uri to file
 }
 
-internal fun shouldAutoWrite(isNew: Boolean, setting: String?): Boolean = isNew && setting == "true"
+internal fun shouldAutoUpdateHealth(entry: JournalEntry): Boolean = !entry.id.startsWith("health-")
 
 private fun userFacingError(error: Throwable): String = when (error) {
     is IllegalArgumentException -> error.message ?: "Invalid data."

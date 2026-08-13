@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.1 - 2026-08-13
+
+- Expanded Food Score explanations with named add/deduct nutrients, density comparisons, completeness, and point caps.
+- Changed calendar rings from Energy progress to each day’s Food Score.
+- Added D/W/M/3M/Y Food Score histograms, per-log daily nutrient contributions, and scored-day period averages.
+- Fixed USDA Back to return to the preceding log chooser or AI review while Cancel closes the flow.
+- Added compact MUFA, PUFA, and Unsat. fat display names across the app.
+- Added Food, Drink, and Both entry kinds in Detailed manual and AI estimate, with dual Health Connect nutrition/hydration export when data is present.
+## 1.2.0 - 2026-08-13
+
+- Removed the Analysis tab and rebuilt Logs as a turquoise swipeable dashboard with score plus three nutrient tiles followed by six-tile pages.
+- Added flame-orange exceeded-target states and tap-through D/W/M/3M/Y nutrient histograms.
+- Consolidated manual, USDA, Camera, Album, and quick-food logging under one + Log button.
+- Reorganized Journal entries into filterable, collapsible meal-category cards with counts and energy totals.
+- Replaced Target progress rows with framed nutrient cards and separate edit actions.
+- Added explicit back navigation to USDA search, entry review, and nutrient history.
+- Replaced the optional Auto Write setting with foreground Health Connect create/replace/delete synchronization using stable client record IDs.
+- Kept the build public-safe and provider-neutral; no gateway or provider credentials are embedded.
+
 ## 1.1.0 - 2026-08-13
 
 - Redesigned the main screen as Logs with a health-style energy card, embedded food score, nutrient progress rows, and a collapsible week/month calendar for previous-day access.

@@ -33,4 +33,31 @@ class FoodScoreTest {
         assertTrue(FoodScoreCalculator.DISCLAIMER.contains("not medical advice"))
         assertFalse(FoodScoreCalculator.DISCLAIMER.contains("judgement"))
     }
+
+    @Test fun explanationsNameTheNutrientReasonReferenceAndMaximumPoints() {
+        val score = FoodScoreCalculator.calculate(
+            Nutrients(
+                mapOf(
+                    NutrientKey.ENERGY to 100.0,
+                    NutrientKey.DIETARY_FIBER to 3.0,
+                    NutrientKey.SODIUM to 135.0,
+                ),
+            ),
+        )
+        val addition = score.components.single { it.key == NutrientKey.DIETARY_FIBER }
+        val deduction = score.components.single { it.key == NutrientKey.SODIUM }
+
+        assertTrue(addition.explanation.contains("Dietary fibre"))
+        assertTrue(addition.explanation.contains("adds points"))
+        assertTrue(addition.explanation.contains("versus"))
+        assertTrue(addition.explanation.contains("FDA Daily Value density"))
+        assertTrue(addition.explanation.contains("maximum +"))
+        assertTrue(addition.expectedPer100Kcal > 0.0)
+        assertTrue(addition.densityRatio > 0.0)
+
+        assertTrue(deduction.explanation.contains("Sodium"))
+        assertTrue(deduction.explanation.contains("deducts points"))
+        assertTrue(deduction.explanation.contains("maximum -"))
+        assertTrue(deduction.maximumPoints > 0)
+    }
 }

@@ -1,21 +1,15 @@
-# Diet Tracker 1.1.0
+# Diet Tracker 1.2.1
 
-Version 1.1.0 makes daily logging faster and adds the requested public-safe camera build.
+Version 1.2.1 is a focused Food Score, navigation, label, and Health Connect update. Other v1.2.0 behavior remains unchanged.
 
 Highlights:
 
-- New Logs dashboard with an energy summary, food score, nutrient progress, and expandable week/month calendar.
-- AI photo logging from either Camera or Album, with user-controlled consent and transient image handling.
-- Simpler food name and quantity entry with g, kg, mL, L, serving, and kcal units.
-- Editable nutrient progress rows and `--` for genuinely unavailable values.
-- New Target section with US, EU, Singapore, and custom nutrient references.
-- Food score no longer requires verified USDA provenance; it uses available reported nutrients and still distinguishes missing values from zero.
-- Optional Health Connect Auto Write for newly confirmed logs, with no background service.
-- USDA FoodData Central access through the private gateway with limited `DEMO_KEY` fallback or an optional private key override.
-- Public APK starts with no gateway configured and contains no gateway endpoint, access token, OpenAI key, or USDA key.
-
-Validation completed with 23 JVM tests, 5 gateway contract tests, 7 API 36 Compose tests, a minified release build, APK signature verification, and source/binary secret scans.
-
-AI photo analysis and in-app USDA search require the user to deploy `gateway/` and enter that deployment's URL and app token in Settings. ChatGPT Plus is not OpenAI API quota. All local/manual features require no provider key.
+- Food Score review now separates every reported component into Adds points and Deducts points, naming the nutrient, measured density, FDA reference density, percentage, and point cap.
+- Calendar rings now represent each day’s Food Score on a 0–100 scale.
+- Tapping Food Score opens D/W/M/3M/Y histograms. D shows each log’s Food Score and nutrient contribution; longer periods show averages from calculable daily scores.
+- USDA Back returns to the preceding + Log chooser or AI review; Cancel still closes the flow.
+- Long fat names use the compact labels MUFA, PUFA, and Unsat. fat.
+- Detailed manual and AI estimate offer Food, Drink, and Both. A Both entry containing nutrition and water is exported to Health Connect as both Nutrition and Hydration records.
+- Public-safe runtime configuration remains unchanged. No gateway endpoint, app token, provider key, or signing credential is embedded.
 
 This software is informational and is not medical advice or a medical device.
