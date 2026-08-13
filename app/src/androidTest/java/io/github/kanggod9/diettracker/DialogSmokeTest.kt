@@ -1,5 +1,6 @@
 package io.github.kanggod9.diettracker
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +22,8 @@ import io.github.kanggod9.diettracker.integration.UsdaFoodDataSource
 import io.github.kanggod9.diettracker.ui.EntryEditorDialog
 import io.github.kanggod9.diettracker.ui.FoodScoreHistoryScreen
 import io.github.kanggod9.diettracker.ui.LogChooserDialog
+import io.github.kanggod9.diettracker.ui.NutrientHistoryScreen
+import io.github.kanggod9.diettracker.ui.NutrientProgressRow
 import io.github.kanggod9.diettracker.ui.PhotoConsentDialog
 import io.github.kanggod9.diettracker.ui.PhotoSourceDialog
 import io.github.kanggod9.diettracker.ui.ReviewSeed
@@ -117,6 +120,40 @@ class DialogSmokeTest {
         compose.onNodeWithText("Food").assertExists()
         compose.onNodeWithText("Drink").assertExists()
         compose.onNodeWithText("Both").assertExists()
+    }
+
+    @Test fun detailedAndAiNutrientRowsUseFullFatNames() {
+        compose.setContent {
+            MaterialTheme {
+                Column {
+                    NutrientProgressRow(NutrientKey.MONOUNSATURATED_FAT, null, null)
+                    NutrientProgressRow(NutrientKey.POLYUNSATURATED_FAT, null, null)
+                    NutrientProgressRow(NutrientKey.UNSATURATED_FAT, null, null)
+                }
+            }
+        }
+        compose.onNodeWithText("Monounsaturated fat").assertExists()
+        compose.onNodeWithText("Polyunsaturated fat").assertExists()
+        compose.onNodeWithText("Unsaturated fat").assertExists()
+        compose.onNodeWithText("MUFA").assertDoesNotExist()
+        compose.onNodeWithText("PUFA").assertDoesNotExist()
+        compose.onNodeWithText("Unsat. fat").assertDoesNotExist()
+    }
+
+    @Test fun nutrientHistoryUsesTheFullFatName() {
+        compose.setContent {
+            MaterialTheme {
+                NutrientHistoryScreen(
+                    key = NutrientKey.POLYUNSATURATED_FAT,
+                    entries = emptyList(),
+                    initialDate = LocalDate.now(),
+                    target = null,
+                    onBack = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Polyunsaturated fat").assertExists()
+        compose.onNodeWithText("PUFA").assertDoesNotExist()
     }
 
     @Test fun nutrientProgressValueOpensEditor() {

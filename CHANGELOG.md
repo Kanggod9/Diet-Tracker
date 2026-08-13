@@ -6,7 +6,7 @@
 - Changed calendar rings from Energy progress to each day’s Food Score.
 - Added D/W/M/3M/Y Food Score histograms, per-log daily nutrient contributions, and scored-day period averages.
 - Fixed USDA Back to return to the preceding log chooser or AI review while Cancel closes the flow.
-- Added compact MUFA, PUFA, and Unsat. fat display names across the app.
+- Added compact MUFA, PUFA, and Unsat. fat labels on dashboard tiles while retaining full names in detailed views and editors.
 - Added Food, Drink, and Both entry kinds in Detailed manual and AI estimate, with dual Health Connect nutrition/hydration export when data is present.
 ## 1.2.0 - 2026-08-13
 

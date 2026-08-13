@@ -9,6 +9,7 @@ import io.github.kanggod9.diettracker.domain.Nutrients
 import io.github.kanggod9.diettracker.ui.HistoryPeriod
 import io.github.kanggod9.diettracker.ui.calendarFoodScores
 import io.github.kanggod9.diettracker.ui.dashboardNutrientOrder
+import io.github.kanggod9.diettracker.ui.dashboardNutrientLabel
 import io.github.kanggod9.diettracker.ui.dashboardPages
 import io.github.kanggod9.diettracker.ui.foodScoreHistoryBuckets
 import io.github.kanggod9.diettracker.ui.foodScorePeriodSummary
@@ -175,9 +176,13 @@ class NutrientHistoryTest {
         assertEquals(august.average!!, period.average!!, 0.0)
     }
 
-    @Test fun compactFatNamesAreUnambiguousAndFitTiles() {
-        assertEquals("MUFA", NutrientKey.MONOUNSATURATED_FAT.label)
-        assertEquals("PUFA", NutrientKey.POLYUNSATURATED_FAT.label)
-        assertEquals("Unsat. fat", NutrientKey.UNSATURATED_FAT.label)
+    @Test fun fatNamesAreFullExceptOnCompactDashboardTiles() {
+        assertEquals("Monounsaturated fat", NutrientKey.MONOUNSATURATED_FAT.label)
+        assertEquals("Polyunsaturated fat", NutrientKey.POLYUNSATURATED_FAT.label)
+        assertEquals("Unsaturated fat", NutrientKey.UNSATURATED_FAT.label)
+        assertEquals("MUFA", dashboardNutrientLabel(NutrientKey.MONOUNSATURATED_FAT))
+        assertEquals("PUFA", dashboardNutrientLabel(NutrientKey.POLYUNSATURATED_FAT))
+        assertEquals("Unsat. fat", dashboardNutrientLabel(NutrientKey.UNSATURATED_FAT))
+        assertEquals("Calcium", dashboardNutrientLabel(NutrientKey.CALCIUM))
     }
 }
