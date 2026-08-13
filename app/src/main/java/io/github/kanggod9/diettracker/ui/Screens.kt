@@ -129,6 +129,13 @@ internal fun dashboardPages(
 ): List<List<NutrientKey>> =
     listOf(order.take(3)) + order.drop(3).chunked(6)
 
+internal fun dashboardNutrientLabel(key: NutrientKey): String = when (key) {
+    NutrientKey.MONOUNSATURATED_FAT -> "MUFA"
+    NutrientKey.POLYUNSATURATED_FAT -> "PUFA"
+    NutrientKey.UNSATURATED_FAT -> "Unsat. fat"
+    else -> key.label
+}
+
 internal data class NutrientProgressState(
     val fill: Float,
     val exceeded: Boolean,
@@ -340,7 +347,7 @@ private fun NutrientDashboardTile(
                 )
             }
             Column(Modifier.weight(1f)) {
-                Text(key.label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                Text(dashboardNutrientLabel(key), style = MaterialTheme.typography.labelLarge, maxLines = 1)
                 Text(
                     value?.let { "${formatValue(it)} ${key.unit}" } ?: "--",
                     style = MaterialTheme.typography.titleMedium,
