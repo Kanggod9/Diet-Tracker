@@ -9,9 +9,11 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import org.junit.Rule
 import org.junit.Test
 
@@ -79,12 +81,44 @@ val progressBar = SemanticsMatcher("has progress bar") { node ->
         compose.onNodeWithText(today.format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy"))).assertExists()
     }
 
+    @Test fun weekRowSwipesToEarlierWeeksAndStopsAtTheCurrentWeek() {
+        val today = java.time.LocalDate.now()
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d")
+        compose.onNodeWithContentDescription("Week calendar").performTouchInput { swipeRight() }
+        compose.waitForIdle()
+        compose.onNodeWithText(today.minusWeeks(1).format(formatter)).assertExists()
+
+        compose.onNodeWithContentDescription("Week calendar").performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        compose.onNodeWithText(today.format(formatter)).assertExists()
+
+        compose.onNodeWithContentDescription("Week calendar").performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        compose.onNodeWithText(today.format(formatter)).assertExists()
+    }
+
+    @Test fun detailedManualBackReturnsToTheLogChooser() {
+        compose.onNodeWithText("+ Log").performClick()
+        compose.onNodeWithText("Detailed manual").performClick()
+        compose.onNodeWithText("Detailed manual").assertExists()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("Log food or drink").assertExists()
+    }
+
     @Test fun settingsUseBuiltInHealthUpdatesWithoutToggleOrDescription() {
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("Private AI and USDA gateway").assertExists()
         compose.onNodeWithText("Health Connect").assertExists()
         compose.onNodeWithText("Auto Write").assertDoesNotExist()
         compose.onNodeWithText("Auto Update").assertDoesNotExist()
+    }
+
+    @Test fun settingsShowConfigurableDefaultMealReminderTimes() {
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("Meal reminders").performScrollTo().assertExists()
+        compose.onNodeWithText("8:00 AM").assertExists()
+        compose.onNodeWithText("12:00 PM").assertExists()
+        compose.onNodeWithText("6:00 PM").assertExists()
     }
     @Test fun foodScoreTileOpensDedicatedHistoryAndReturnsToLogs() {
         compose.onNodeWithContentDescription("Food score tile").performClick()

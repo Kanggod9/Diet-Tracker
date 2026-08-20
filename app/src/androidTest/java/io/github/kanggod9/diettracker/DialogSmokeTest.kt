@@ -5,17 +5,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextInput
 import io.github.kanggod9.diettracker.domain.EntryKind
 import io.github.kanggod9.diettracker.domain.JournalEntry
 import io.github.kanggod9.diettracker.domain.MealType
 import io.github.kanggod9.diettracker.domain.NutrientKey
 import io.github.kanggod9.diettracker.domain.Nutrients
+import io.github.kanggod9.diettracker.domain.QuickFood
 import io.github.kanggod9.diettracker.integration.UsdaDataType
 import io.github.kanggod9.diettracker.integration.UsdaFood
 import io.github.kanggod9.diettracker.integration.UsdaFoodDataSource
@@ -96,6 +100,28 @@ class DialogSmokeTest {
         compose.onNodeWithText("Food").assertExists()
         compose.onNodeWithText("Drink").assertExists()
         compose.onNodeWithText("Both").assertExists()
+    }
+
+    @Test fun detailedManualBackMovesFromReviewToEditorThenPreviousLevel() {
+        var dismissed = false
+        compose.setContent {
+            MaterialTheme {
+                EntryEditorDialog(
+                    seed = ReviewSeed(null, "Detailed manual"),
+                    nutrientTargets = emptyMap(),
+                    onDismiss = { dismissed = true },
+                    onSave = { _, _ -> },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Name").performTextInput("Back test")
+        compose.onNodeWithText("Review").performClick()
+        compose.onNodeWithText("Review before saving").assertExists()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("Detailed manual").assertExists()
+        compose.onNodeWithContentDescription("Back").performClick()
+        assertTrue(dismissed)
     }
 
     @Test fun aiEstimateOffersFoodDrinkAndBoth() {
@@ -245,6 +271,7 @@ class DialogSmokeTest {
                         onUsdaSearch = { level = "usda" },
                         onPhoto = {},
                         onQuickFood = {},
+                        onDeleteQuickFood = {},
                     )
                     "usda" -> UsdaSearchDialog(
                         request = UsdaLookupRequest("water"),
@@ -262,5 +289,70 @@ class DialogSmokeTest {
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithText("Log food or drink").assertExists()
         assertTrue(level == "chooser")
+    }
+
+    @Test fun photoCancelReturnsToTheLogChooserLevel() {
+        var level by mutableStateOf("chooser")
+        compose.setContent {
+            MaterialTheme {
+                when (level) {
+                    "chooser" -> LogChooserDialog(
+                        quickFoods = emptyList(),
+                        onlineConfigured = true,
+                        onDismiss = { level = "closed" },
+                        onDetailedManual = {},
+                        onTextParsed = {},
+                        onUsdaSearch = {},
+                        onPhoto = { level = "photo" },
+                        onQuickFood = {},
+                        onDeleteQuickFood = {},
+                    )
+                    "photo" -> PhotoSourceDialog(
+                        onDismiss = { level = "chooser" },
+                        onCamera = {},
+                        onAlbum = {},
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("Photo").performClick()
+        compose.onNodeWithText("Camera").assertExists()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("Log food or drink").assertExists()
+        assertTrue(level == "chooser")
+    }
+
+    @Test fun standardLongClickOffersQuickFoodDeletion() {
+        val quick = QuickFood(
+            id = "quick-1",
+            name = "Saved oats",
+            kind = EntryKind.FOOD,
+            servingDescription = "1 serving",
+            servingGrams = null,
+            nutrients = Nutrients(),
+        )
+        var deleted = false
+        compose.setContent {
+            MaterialTheme {
+                LogChooserDialog(
+                    quickFoods = listOf(quick),
+                    onlineConfigured = false,
+                    onDismiss = {},
+                    onDetailedManual = {},
+                    onTextParsed = {},
+                    onUsdaSearch = {},
+                    onPhoto = {},
+                    onQuickFood = {},
+                    onDeleteQuickFood = { deleted = it.id == quick.id },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Saved oats · 1 serving")
+            .performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.onNodeWithText("Delete quick food?").assertExists()
+        compose.onNodeWithText("Delete").performClick()
+        assertTrue(deleted)
     }
 }

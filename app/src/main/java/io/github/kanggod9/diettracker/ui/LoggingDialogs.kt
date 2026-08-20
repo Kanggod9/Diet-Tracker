@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -72,12 +73,15 @@ import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.util.UUID
 
+internal enum class ReviewReturnDestination { CLOSE, LOG_CHOOSER, PHOTO_SOURCE }
+
 internal data class ReviewSeed(
     val entry: JournalEntry?,
     val title: String,
     val sourceNotes: List<String> = emptyList(),
     val photoDraft: PhotoDraft? = null,
     val readOnly: Boolean = false,
+    val returnDestination: ReviewReturnDestination = ReviewReturnDestination.CLOSE,
 )
 
 internal data class UsdaLookupRequest(
@@ -99,11 +103,13 @@ internal fun LogChooserDialog(
     onUsdaSearch: () -> Unit,
     onPhoto: () -> Unit,
     onQuickFood: (QuickFood) -> Unit,
+    onDeleteQuickFood: (QuickFood) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("g") }
     var error by remember { mutableStateOf<String?>(null) }
+    var pendingQuickFoodDelete by remember { mutableStateOf<QuickFood?>(null) }
     val units = listOf("g", "kg", "mL", "L", "serving", "kcal")
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -158,8 +164,17 @@ internal fun LogChooserDialog(
                 if (quickFoods.isNotEmpty()) {
                     item { Text("Quick foods", fontWeight = FontWeight.Bold) }
                     items(quickFoods, key = { it.id }) { quick ->
-                        OutlinedButton(onClick = { onQuickFood(quick) }, modifier = Modifier.fillMaxWidth()) {
-                            Text("${quick.name} · ${quick.servingDescription}")
+                        OutlinedCard(
+                            modifier = Modifier.fillMaxWidth().combinedClickable(
+                                onClick = { onQuickFood(quick) },
+                                onLongClickLabel = "Delete quick food",
+                                onLongClick = { pendingQuickFoodDelete = quick },
+                            ),
+                        ) {
+                            Text(
+                                "${quick.name} · ${quick.servingDescription}",
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            )
                         }
                     }
                 }
@@ -168,6 +183,22 @@ internal fun LogChooserDialog(
         confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
     )
+    pendingQuickFoodDelete?.let { quick ->
+        AlertDialog(
+            onDismissRequest = { pendingQuickFoodDelete = null },
+            title = { Text("Delete quick food?") },
+            text = { Text("Remove ${quick.name} from Quick foods? This does not delete journal entries.") },
+            confirmButton = {
+                Button(onClick = {
+                    pendingQuickFoodDelete = null
+                    onDeleteQuickFood(quick)
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingQuickFoodDelete = null }) { Text("Cancel") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -257,6 +288,8 @@ internal fun UsdaSearchDialog(
                             "USDA ${food.dataType.wireValue} #${food.fdcId}: ${food.description}.",
                         ),
                         photoDraft = merged,
+                        returnDestination = request.returnSeed?.returnDestination
+                            ?: ReviewReturnDestination.PHOTO_SOURCE,
                     )
                 }
             }
@@ -451,7 +484,16 @@ internal fun EntryEditorDialog(
         )
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    fun goBack() {
+        if (review && !seed.readOnly) {
+            review = false
+            candidate = null
+        } else {
+            onDismiss()
+        }
+    }
+
+    Dialog(onDismissRequest = ::goBack, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             Modifier.fillMaxSize().padding(18.dp),
             shape = RoundedCornerShape(28.dp),
@@ -459,7 +501,7 @@ internal fun EntryEditorDialog(
         ) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = ::goBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back")
                     }
                     Text(
@@ -571,12 +613,9 @@ internal fun EntryEditorDialog(
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = {
-                        if (review && !seed.readOnly) {
-                            review = false
-                            candidate = null
-                        } else onDismiss()
-                    }) { Text(if (review && !seed.readOnly) "Back" else "Close") }
+                    TextButton(onClick = ::goBack) {
+                        Text(if (review && !seed.readOnly) "Back" else "Close")
+                    }
                     if (!seed.readOnly) Button(onClick = {
                         if (!review) {
                             buildCandidate()?.let { candidate = it; review = true }

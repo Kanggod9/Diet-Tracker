@@ -1,5 +1,6 @@
 package io.github.kanggod9.diettracker.ui
 
+import android.app.TimePickerDialog
 import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -31,6 +33,8 @@ import io.github.kanggod9.diettracker.data.LocalStore
 import io.github.kanggod9.diettracker.data.SecureConfigStore
 import io.github.kanggod9.diettracker.integration.HealthConnectAvailability
 import io.github.kanggod9.diettracker.integration.HealthConnectGateway
+import io.github.kanggod9.diettracker.reminder.MealReminderPreferences
+import io.github.kanggod9.diettracker.reminder.ReminderMeal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
@@ -38,6 +42,9 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 internal fun SettingsScreen(
@@ -46,7 +53,13 @@ internal fun SettingsScreen(
     healthGateway: HealthConnectGateway,
     gatewayRevision: Int,
     healthPermissionRevision: Int,
+    reminderRevision: Int,
+    notificationPermissionGranted: Boolean,
     onGatewayChanged: () -> Unit,
+    onReminderMasterChanged: (Boolean) -> Unit,
+    onReminderMealChanged: (ReminderMeal, Boolean) -> Unit,
+    onReminderTimeChanged: (ReminderMeal, LocalTime) -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onRequestHealthPermissions: () -> Unit,
     onImportHealth: () -> Unit,
     onExportHealth: () -> Unit,
@@ -57,6 +70,9 @@ internal fun SettingsScreen(
     var token by remember(gatewayRevision) { mutableStateOf("") }
     var gatewayError by remember { mutableStateOf<String?>(null) }
     var granted by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val reminderSettings = remember(reminderRevision) { MealReminderPreferences.load(store) }
+    val context = LocalContext.current
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()) }
     LaunchedEffect(gatewayRevision, healthPermissionRevision) {
         granted = runCatching { healthGateway.grantedPermissions() }.getOrDefault(emptySet())
     }
@@ -139,6 +155,55 @@ internal fun SettingsScreen(
                         enabled = healthAvailable && allHealthPermissions,
                         modifier = Modifier.weight(1f),
                     ) { Text("Write") }
+                }
+            }
+        }
+        item {
+            SectionCard("Meal reminders") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Enable reminders", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Notifications are skipped when that meal is already logged.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Switch(
+                        checked = reminderSettings.enabled,
+                        onCheckedChange = onReminderMasterChanged,
+                    )
+                }
+                if (reminderSettings.enabled && !notificationPermissionGranted) {
+                    Text("Notification permission is required.", color = MaterialTheme.colorScheme.error)
+                    Button(onClick = onRequestNotificationPermission, modifier = Modifier.fillMaxWidth()) {
+                        Text("Grant notification permission")
+                    }
+                }
+                ReminderMeal.entries.forEach { meal ->
+                    val option = reminderSettings.option(meal)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text(meal.displayName, fontWeight = FontWeight.SemiBold)
+                            OutlinedButton(
+                                onClick = {
+                                    TimePickerDialog(
+                                        context,
+                                        { _, hour, minute ->
+                                            onReminderTimeChanged(meal, LocalTime.of(hour, minute))
+                                        },
+                                        option.time.hour,
+                                        option.time.minute,
+                                        false,
+                                    ).show()
+                                },
+                                enabled = option.enabled,
+                            ) { Text(option.time.format(timeFormatter)) }
+                        }
+                        Switch(
+                            checked = option.enabled,
+                            onCheckedChange = { onReminderMealChanged(meal, it) },
+                        )
+                    }
                 }
             }
         }

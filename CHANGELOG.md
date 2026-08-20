@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1 - 2026-08-20
+
+- Added standard Android long-press deletion with confirmation for saved Quick foods.
+- Added swipeable week navigation using natural timeline direction, bounded so the current week is the latest available week.
+- Added dashboard-only Fat kcal and Vitamin B5 abbreviations while retaining full names elsewhere.
+- Fixed previous-level navigation for Detailed manual, Quick food review, Photo source, cancelled photo selection, photo consent, and AI review.
+- Added optional, independently configurable breakfast, lunch, and dinner reminders with notification permission and logged-meal suppression.
+
 ## 1.2.1 - 2026-08-13
 
 - Expanded Food Score explanations with named add/deduct nutrients, density comparisons, completeness, and point caps.

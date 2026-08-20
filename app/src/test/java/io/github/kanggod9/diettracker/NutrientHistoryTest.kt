@@ -8,6 +8,9 @@ import io.github.kanggod9.diettracker.domain.NutrientKey
 import io.github.kanggod9.diettracker.domain.Nutrients
 import io.github.kanggod9.diettracker.ui.HistoryPeriod
 import io.github.kanggod9.diettracker.ui.calendarFoodScores
+import io.github.kanggod9.diettracker.ui.calendarDateForWeekPage
+import io.github.kanggod9.diettracker.ui.calendarWeekPage
+import io.github.kanggod9.diettracker.ui.calendarWeekStart
 import io.github.kanggod9.diettracker.ui.dashboardNutrientOrder
 import io.github.kanggod9.diettracker.ui.dashboardNutrientLabel
 import io.github.kanggod9.diettracker.ui.dashboardPages
@@ -184,5 +187,25 @@ class NutrientHistoryTest {
         assertEquals("PUFA", dashboardNutrientLabel(NutrientKey.POLYUNSATURATED_FAT))
         assertEquals("Unsat. fat", dashboardNutrientLabel(NutrientKey.UNSATURATED_FAT))
         assertEquals("Calcium", dashboardNutrientLabel(NutrientKey.CALCIUM))
+    }
+
+    @Test fun onlyDashboardUsesTheNewLongNameAbbreviations() {
+        assertEquals("Energy from fat", NutrientKey.ENERGY_FROM_FAT.label)
+        assertEquals("Pantothenic acid", NutrientKey.PANTOTHENIC_ACID.label)
+        assertEquals("Fat kcal", dashboardNutrientLabel(NutrientKey.ENERGY_FROM_FAT))
+        assertEquals("Vitamin B5", dashboardNutrientLabel(NutrientKey.PANTOTHENIC_ACID))
+    }
+
+    @Test fun weekPagerUsesCurrentWeekAsTheLastPageAndPreservesWeekday() {
+        val today = LocalDate.of(2026, 8, 20) // Thursday
+        assertEquals(LocalDate.of(2026, 8, 17), calendarWeekStart(today))
+        val currentPage = calendarWeekPage(today, today)
+        assertEquals(currentPage - 1, calendarWeekPage(today.minusWeeks(1), today))
+        assertEquals(currentPage, calendarWeekPage(today.plusWeeks(1), today))
+        assertEquals(
+            LocalDate.of(2026, 8, 13),
+            calendarDateForWeekPage(currentPage - 1, today, today),
+        )
+        assertEquals(today, calendarDateForWeekPage(currentPage, today.minusWeeks(1), today))
     }
 }

@@ -7,7 +7,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.Typography
 import androidx.activity.compose.BackHandler
 
+import android.Manifest
 import android.content.Context
+import android.os.Build
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -29,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +60,9 @@ import io.github.kanggod9.diettracker.integration.GatewayHttpClient
 import io.github.kanggod9.diettracker.integration.GatewayPhotoProvider
 import io.github.kanggod9.diettracker.integration.GatewayUsdaDataSource
 import io.github.kanggod9.diettracker.integration.HealthConnectGateway
+import io.github.kanggod9.diettracker.reminder.MealReminderPreferences
+import io.github.kanggod9.diettracker.reminder.MealReminderScheduler
+import io.github.kanggod9.diettracker.reminder.notificationPermissionGranted
 import kotlinx.coroutines.launch
 import java.io.File
 import java.time.Instant
@@ -127,6 +133,8 @@ fun DietTrackerApp(store: LocalStore) {
     var gatewayRevision by remember { mutableIntStateOf(0) }
     var targetRevision by remember { mutableIntStateOf(0) }
     var healthPermissionRevision by remember { mutableIntStateOf(0) }
+    var reminderRevision by remember { mutableIntStateOf(0) }
+    var notificationsGranted by remember { mutableStateOf(notificationPermissionGranted(context)) }
     var nutrientHistory by remember { mutableStateOf<NutrientKey?>(null) }
     var foodScoreHistoryOpen by remember { mutableStateOf(false) }
     var guidanceRegion by remember {
@@ -159,9 +167,11 @@ fun DietTrackerApp(store: LocalStore) {
                         "${draft.sourceType.name.lowercase().replaceFirstChar { it.titlecase() }} photo · ${(draft.confidence * 100).toInt()}% confidence",
                     ) + draft.warnings,
                     photoDraft = draft,
+                    returnDestination = ReviewReturnDestination.PHOTO_SOURCE,
                 )
             } catch (error: Exception) {
                 message(userFacingError(error))
+                photoSourceOpen = true
             } finally {
                 cameraFile?.delete()
                 cameraFile = null
@@ -221,8 +231,8 @@ fun DietTrackerApp(store: LocalStore) {
         }
     }
 
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) {
-        acceptPhoto(it)
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null) photoSourceOpen = true else acceptPhoto(uri)
     }
     val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         val uri = cameraUri
@@ -232,6 +242,7 @@ fun DietTrackerApp(store: LocalStore) {
         } else {
             cameraFile?.delete()
             cameraFile = null
+            photoSourceOpen = true
         }
     }
     val exportDocument = rememberLauncherForActivityResult(
@@ -250,6 +261,22 @@ fun DietTrackerApp(store: LocalStore) {
     ) { granted ->
         healthPermissionRevision++
         message(if (healthGateway.canReadAndWrite(granted)) "Health Connect permissions granted." else "Health Connect permissions incomplete.")
+    }
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        notificationsGranted = granted
+        if (granted) {
+            MealReminderPreferences.setMasterEnabled(store, true)
+            MealReminderScheduler.sync(context.applicationContext, store)
+            reminderRevision++
+            message("Meal reminders enabled.")
+        } else {
+            message("Notification permission is required for meal reminders.")
+        }
+    }
+    LaunchedEffect(Unit) {
+        MealReminderScheduler.sync(context.applicationContext, store)
     }
 
     val selectedAggregate = remember(entries, selectedDate) {
@@ -356,7 +383,38 @@ fun DietTrackerApp(store: LocalStore) {
                             healthGateway = healthGateway,
                             gatewayRevision = gatewayRevision,
                             healthPermissionRevision = healthPermissionRevision,
+                            reminderRevision = reminderRevision,
+                            notificationPermissionGranted = notificationsGranted,
                             onGatewayChanged = { gatewayRevision++; message("Gateway settings updated.") },
+                            onReminderMasterChanged = { enabled ->
+                                if (!enabled) {
+                                    MealReminderPreferences.setMasterEnabled(store, false)
+                                    MealReminderScheduler.sync(context.applicationContext, store)
+                                    reminderRevision++
+                                } else if (notificationPermissionGranted(context)) {
+                                    notificationsGranted = true
+                                    MealReminderPreferences.setMasterEnabled(store, true)
+                                    MealReminderScheduler.sync(context.applicationContext, store)
+                                    reminderRevision++
+                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            },
+                            onReminderMealChanged = { meal, enabled ->
+                                MealReminderPreferences.setMealEnabled(store, meal, enabled)
+                                MealReminderScheduler.sync(context.applicationContext, store)
+                                reminderRevision++
+                            },
+                            onReminderTimeChanged = { meal, time ->
+                                MealReminderPreferences.setMealTime(store, meal, time)
+                                MealReminderScheduler.sync(context.applicationContext, store)
+                                reminderRevision++
+                            },
+                            onRequestNotificationPermission = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            },
                             onRequestHealthPermissions = { healthPermissions.launch(healthGateway.permissions) },
                             onImportHealth = {
                                 scope.launch {
@@ -390,7 +448,14 @@ fun DietTrackerApp(store: LocalStore) {
             quickFoods = quickFoods,
             onlineConfigured = secureConfig.isConfigured(),
             onDismiss = { addOpen = false },
-            onDetailedManual = { addOpen = false; reviewSeed = ReviewSeed(null, "Detailed manual") },
+            onDetailedManual = {
+                addOpen = false
+                reviewSeed = ReviewSeed(
+                    null,
+                    "Detailed manual",
+                    returnDestination = ReviewReturnDestination.LOG_CHOOSER,
+                )
+            },
             onTextParsed = { addOpen = false; usdaRequest = UsdaLookupRequest(it.name, parsed = it) },
             onUsdaSearch = { addOpen = false; usdaRequest = UsdaLookupRequest("") },
             onPhoto = {
@@ -398,11 +463,26 @@ fun DietTrackerApp(store: LocalStore) {
                 if (secureConfig.isConfigured()) photoSourceOpen = true
                 else message("Configure the private gateway in Settings.")
             },
-            onQuickFood = { addOpen = false; reviewSeed = ReviewSeed(it.toJournalEntry(), "Review quick food") },
+            onQuickFood = {
+                addOpen = false
+                reviewSeed = ReviewSeed(
+                    it.toJournalEntry(),
+                    "Review quick food",
+                    returnDestination = ReviewReturnDestination.LOG_CHOOSER,
+                )
+            },
+            onDeleteQuickFood = { quick ->
+                store.deleteQuickFood(quick.id)
+                refresh()
+                message("Quick food deleted.")
+            },
         )
 
         if (photoSourceOpen) PhotoSourceDialog(
-            onDismiss = { photoSourceOpen = false },
+            onDismiss = {
+                photoSourceOpen = false
+                addOpen = true
+            },
             onCamera = {
                 photoSourceOpen = false
                 runCatching { createCameraCapture(context) }
@@ -411,7 +491,10 @@ fun DietTrackerApp(store: LocalStore) {
                         cameraFile = capture.second
                         takePhoto.launch(capture.first)
                     }
-                    .onFailure { message("Camera could not be opened.") }
+                    .onFailure {
+                        message("Camera could not be opened.")
+                        photoSourceOpen = true
+                    }
             },
             onAlbum = {
                 photoSourceOpen = false
@@ -423,7 +506,14 @@ fun DietTrackerApp(store: LocalStore) {
             EntryEditorDialog(
                 seed = seed,
                 nutrientTargets = targets,
-                onDismiss = { reviewSeed = null },
+                onDismiss = {
+                    reviewSeed = null
+                    when (seed.returnDestination) {
+                        ReviewReturnDestination.CLOSE -> Unit
+                        ReviewReturnDestination.LOG_CHOOSER -> addOpen = true
+                        ReviewReturnDestination.PHOTO_SOURCE -> photoSourceOpen = true
+                    }
+                },
                 onSave = { entry, saveQuick ->
                     val isNew = entries.none { it.id == entry.id }
                     val datedEntry = if (isNew && selectedDate != LocalDate.now()) {
@@ -473,6 +563,7 @@ fun DietTrackerApp(store: LocalStore) {
                     pendingPhoto = null
                     cameraFile?.delete()
                     cameraFile = null
+                    photoSourceOpen = true
                 },
                 onAnalyze = { dontShowAgain ->
                     if (dontShowAgain) store.setSetting(PHOTO_CONSENT_SKIP, "true")

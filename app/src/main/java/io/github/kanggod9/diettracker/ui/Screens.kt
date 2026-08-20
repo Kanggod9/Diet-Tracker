@@ -68,6 +68,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
@@ -100,6 +101,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import java.util.UUID
@@ -130,9 +132,11 @@ internal fun dashboardPages(
     listOf(order.take(3)) + order.drop(3).chunked(6)
 
 internal fun dashboardNutrientLabel(key: NutrientKey): String = when (key) {
+    NutrientKey.ENERGY_FROM_FAT -> "Fat kcal"
     NutrientKey.MONOUNSATURATED_FAT -> "MUFA"
     NutrientKey.POLYUNSATURATED_FAT -> "PUFA"
     NutrientKey.UNSATURATED_FAT -> "Unsat. fat"
+    NutrientKey.PANTOTHENIC_ACID -> "Vitamin B5"
     else -> key.label
 }
 
@@ -533,17 +537,58 @@ private fun DateNavigator(
     }
 }
 
+private const val CALENDAR_WEEK_PAGE_COUNT = 5_200
+private const val CALENDAR_CURRENT_WEEK_PAGE = CALENDAR_WEEK_PAGE_COUNT - 1
+
+internal fun calendarWeekStart(date: LocalDate): LocalDate =
+    date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+internal fun calendarWeekPage(date: LocalDate, today: LocalDate = LocalDate.now()): Int =
+    (CALENDAR_CURRENT_WEEK_PAGE -
+        ChronoUnit.WEEKS.between(calendarWeekStart(date), calendarWeekStart(today)).toInt())
+        .coerceIn(0, CALENDAR_WEEK_PAGE_COUNT - 1)
+
+internal fun calendarDateForWeekPage(
+    page: Int,
+    selectedDate: LocalDate,
+    today: LocalDate = LocalDate.now(),
+): LocalDate = calendarWeekStart(today)
+    .minusWeeks((CALENDAR_CURRENT_WEEK_PAGE - page).toLong())
+    .plusDays((selectedDate.dayOfWeek.value - DayOfWeek.MONDAY.value).toLong())
+
 @Composable
 private fun CalendarWeek(
     selectedDate: LocalDate,
     dailyScores: Map<LocalDate, Int?>,
     onDateSelected: (LocalDate) -> Unit,
 ) {
-    val start = selectedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        (0L..6L).forEach { offset ->
-            val date = start.plusDays(offset)
-            CalendarDay(date, selectedDate, true, true, dailyScores[date], onDateSelected)
+    val today = LocalDate.now()
+    val pagerState = rememberPagerState(
+        initialPage = calendarWeekPage(selectedDate, today),
+        pageCount = { CALENDAR_WEEK_PAGE_COUNT },
+    )
+    LaunchedEffect(selectedDate) {
+        val targetPage = calendarWeekPage(selectedDate, today)
+        if (pagerState.settledPage != targetPage) pagerState.scrollToPage(targetPage)
+    }
+    LaunchedEffect(pagerState.settledPage) {
+        val page = pagerState.settledPage
+        if (calendarWeekPage(selectedDate, today) != page) {
+            onDateSelected(calendarDateForWeekPage(page, selectedDate, today))
+        }
+    }
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Week calendar" },
+        pageSpacing = 10.dp,
+    ) { page ->
+        val start = calendarWeekStart(today)
+            .minusWeeks((CALENDAR_CURRENT_WEEK_PAGE - page).toLong())
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            (0L..6L).forEach { offset ->
+                val date = start.plusDays(offset)
+                CalendarDay(date, selectedDate, true, true, dailyScores[date], onDateSelected)
+            }
         }
     }
 }

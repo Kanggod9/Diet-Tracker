@@ -1,15 +1,14 @@
-# Diet Tracker 1.2.1
+# Diet Tracker 1.3.1
 
-Version 1.2.1 is a focused Food Score, navigation, label, and Health Connect update. Other v1.2.0 behavior remains unchanged.
+Version 1.3.1 adds Quick food management, calendar navigation, compact dashboard labels, corrected back navigation, and configurable meal reminders.
 
 Highlights:
 
-- Food Score review now separates every reported component into Adds points and Deducts points, naming the nutrient, measured density, FDA reference density, percentage, and point cap.
-- Calendar rings now represent each day’s Food Score on a 0–100 scale.
-- Tapping Food Score opens D/W/M/3M/Y histograms. D shows each log’s Food Score and nutrient contribution; longer periods show averages from calculable daily scores.
-- USDA Back returns to the preceding + Log chooser or AI review; Cancel still closes the flow.
-- Long fat names use the compact labels MUFA, PUFA, and Unsat. fat.
-- Detailed manual and AI estimate offer Food, Drink, and Both. A Both entry containing nutrition and water is exported to Health Connect as both Nutrition and Hydration records.
+- Long-press a saved Quick food using Android's standard gesture to open a Delete confirmation.
+- Swipe the week row right for earlier weeks and left for later weeks; future weeks remain unavailable after returning to the current week.
+- Dashboard tiles use Fat kcal and Vitamin B5 where full names do not fit; detailed screens keep the full names.
+- Detailed manual, Quick food, and Photo flows return to their previous level instead of disappearing.
+- Optional breakfast, lunch, and dinner notifications default to 8:00 AM, 12:00 PM, and 6:00 PM. Each can be disabled or customized, and a reminder is skipped when that meal is already logged.
 - Public-safe runtime configuration remains unchanged. No gateway endpoint, app token, provider key, or signing credential is embedded.
 
 This software is informational and is not medical advice or a medical device.
